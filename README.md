@@ -66,25 +66,53 @@ news-recommendation/
 
 ### Development Setup
 
-1. **Backend Setup**:
+1. **Clone Repository**:
    ```bash
-   cd backend
-   pip install -r requirements.txt
-   uvicorn app.main:app --reload
+   git clone https://github.com/nilecui/news-recommendation.git
+   cd news-recommendation
    ```
 
-2. **Frontend Setup**:
+2. **Backend Setup**:
+   ```bash
+   cd backend
+
+   # Create virtual environment
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+   # Install dependencies
+   pip install -r requirements.txt
+
+   # Configure environment
+   cp .env.example .env
+   # Edit .env and set SECRET_KEY and DATABASE_URL
+
+   # Initialize database
+   alembic upgrade head
+
+   # Start backend server
+   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+
+3. **Frontend Setup**:
    ```bash
    cd frontend
+
+   # Install dependencies
    npm install
+   # or: pnpm install
+
+   # Start development server
    npm run dev
    ```
 
-3. **Database Setup**:
+4. **Database Services (Optional but Recommended)**:
    ```bash
+   # Start PostgreSQL, Redis, and Elasticsearch
    docker-compose up -d postgres redis elasticsearch
-   alembic upgrade head
    ```
+
+   **Note**: The app can run with SQLite (default in .env) without Docker.
 
 ## API Documentation
 
