@@ -2,9 +2,8 @@
 Database configuration and connection setup
 """
 
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.pool import StaticPool
 import redis.asyncio as aioredis
 from elasticsearch import AsyncElasticsearch
@@ -57,7 +56,7 @@ async def test_database_connection():
     try:
         # Test PostgreSQL
         with engine.connect() as conn:
-            conn.execute("SELECT 1")
+            conn.execute(text("SELECT 1"))
         print("✅ PostgreSQL connection successful")
 
         # Test Redis

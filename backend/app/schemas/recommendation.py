@@ -78,7 +78,7 @@ class PersonalizedRecommendationRequest(BaseModel):
 
 class HotRecommendationRequest(BaseModel):
     """Schema for hot/trending recommendation request"""
-    time_range: str = Field("24h", regex=r'^(1h|6h|24h|7d|30d)$')
+    time_range: str = Field("24h", pattern=r'^(1h|6h|24h|7d|30d)$')
     category_id: Optional[int] = None
     page: int = Field(1, ge=1)
     page_size: int = Field(20, ge=1, le=100)
@@ -89,7 +89,7 @@ class CategoryRecommendationRequest(BaseModel):
     category_id: int
     page: int = Field(1, ge=1)
     page_size: int = Field(20, ge=1, le=100)
-    sort_by: str = Field("popularity", regex=r'^(popularity|trending|published_at|quality)$')
+    sort_by: str = Field("popularity", pattern=r'^(popularity|trending|published_at|quality)$')
 
 
 class SimilarNewsRequest(BaseModel):
@@ -118,7 +118,7 @@ class RecommendationFeedbackRequest(BaseModel):
     """Schema for recommendation feedback"""
     recommendation_id: str = Field(..., max_length=100)
     news_id: int
-    feedback_type: str = Field(..., regex=r'^(positive|negative|neutral)$')
+    feedback_type: str = Field(..., pattern=r'^(positive|negative|neutral)$')
     reason: Optional[str] = Field(None, max_length=500)
 
 
@@ -152,7 +152,7 @@ class RecallStrategyWeight(BaseModel):
 class RecommendationConfigRequest(BaseModel):
     """Schema for recommendation configuration request"""
     recall_weights: Optional[RecallStrategyWeight] = None
-    ranking_model: Optional[str] = Field(None, regex=r'^(lightgbm|random_forest|neural_network)$')
+    ranking_model: Optional[str] = Field(None, pattern=r'^(lightgbm|random_forest|neural_network)$')
     diversity_lambda: Optional[float] = Field(None, ge=0.0, le=1.0)
     freshness_decay: Optional[float] = Field(None, ge=0.0, le=1.0)
     min_quality_threshold: Optional[float] = Field(None, ge=0.0, le=1.0)
@@ -171,7 +171,7 @@ class RecommendationConfigResponse(BaseModel):
 class ABTestConfig(BaseModel):
     """Schema for A/B test configuration"""
     test_name: str = Field(..., max_length=100)
-    test_group: str = Field(..., regex=r'^(control|variant_a|variant_b|variant_c)$')
+    test_group: str = Field(..., pattern=r'^(control|variant_a|variant_b|variant_c)$')
     config: Dict[str, Any]
     traffic_percentage: float = Field(..., ge=0.0, le=100.0)
     is_active: bool = True

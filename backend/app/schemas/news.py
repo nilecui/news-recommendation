@@ -14,7 +14,7 @@ class NewsCategoryBase(BaseModel):
     description: Optional[str] = None
     parent_id: Optional[int] = None
     icon: Optional[str] = None
-    color: Optional[str] = Field(None, regex=r'^#[0-9A-Fa-f]{6}$')
+    color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     sort_order: int = 0
     is_active: bool = True
 
@@ -31,7 +31,7 @@ class NewsCategoryUpdate(BaseModel):
     description: Optional[str] = None
     parent_id: Optional[int] = None
     icon: Optional[str] = None
-    color: Optional[str] = Field(None, regex=r'^#[0-9A-Fa-f]{6}$')
+    color: Optional[str] = Field(None, pattern=r'^#[0-9A-Fa-f]{6}$')
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None
 
@@ -171,8 +171,8 @@ class NewsSearchRequest(BaseModel):
     published_before: Optional[datetime] = None
     min_quality_score: Optional[float] = Field(None, ge=0.0, le=1.0)
     min_popularity_score: Optional[float] = Field(None, ge=0.0)
-    sort_by: str = Field("published_at", regex=r'^(published_at|popularity_score|trending_score|created_at|view_count)$')
-    sort_order: str = Field("desc", regex=r'^(asc|desc)$')
+    sort_by: str = Field("published_at", pattern=r'^(published_at|popularity_score|trending_score|created_at|view_count)$')
+    sort_order: str = Field("desc", pattern=r'^(asc|desc)$')
     page: int = Field(1, ge=1)
     page_size: int = Field(20, ge=1, le=100)
 
@@ -212,5 +212,5 @@ class NewsFeedRequest(BaseModel):
 class NewsTrendingRequest(BaseModel):
     """Schema for trending news request"""
     category_id: Optional[int] = None
-    time_range: str = Field("24h", regex=r'^(1h|6h|24h|7d|30d)$')
+    time_range: str = Field("24h", pattern=r'^(1h|6h|24h|7d|30d)$')
     limit: int = Field(20, ge=1, le=100)

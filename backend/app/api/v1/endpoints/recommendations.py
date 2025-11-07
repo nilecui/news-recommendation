@@ -10,7 +10,7 @@ from app.config.database import get_db
 from app.models.user import User
 from app.schemas.recommendation import RecommendationResponse
 from app.services.recommendation.recommendation_service import RecommendationService
-from app.services.auth.auth_service import get_current_user
+from app.services.auth.dependencies import get_current_user
 
 router = APIRouter()
 
@@ -76,7 +76,7 @@ async def get_similar_news(
 
 @router.get("/popular")
 async def get_popular_news(
-    timeframe: str = Query("day", regex="^(hour|day|week)$"),
+    timeframe: str = Query("day", pattern="^(hour|day|week)$"),
     category: Optional[str] = None,
     limit: int = Query(20, ge=1, le=50),
     current_user: User = Depends(get_current_user),
@@ -115,7 +115,7 @@ async def get_discovery_recommendations(
 @router.post("/feedback")
 async def submit_recommendation_feedback(
     news_id: int,
-    feedback_type: str = Query(..., regex="^(like|dislike|not_interested)$"),
+    feedback_type: str = Query(..., pattern="^(like|dislike|not_interested)$"),
     reason: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)

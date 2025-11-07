@@ -10,7 +10,7 @@ from app.config.database import get_db
 from app.models.user import User
 from app.schemas.news import NewsResponse, NewsSearchRequest
 from app.services.news.news_service import NewsService
-from app.services.auth.auth_service import get_current_user, get_optional_current_user
+from app.services.auth.dependencies import get_current_user, get_optional_current_user
 
 router = APIRouter()
 
@@ -56,7 +56,7 @@ async def get_news_by_category(
 
 @router.get("/trending")
 async def get_trending_news(
-    timeframe: str = Query("day", regex="^(hour|day|week)$"),
+    timeframe: str = Query("day", pattern="^(hour|day|week)$"),
     category: Optional[str] = None,
     limit: int = Query(20, ge=1, le=50),
     current_user: Optional[User] = Depends(get_optional_current_user),
@@ -137,7 +137,7 @@ async def collect_news(
 @router.post("/{news_id}/share")
 async def share_news(
     news_id: int,
-    platform: str = Query(..., regex="^(wechat|weibo|twitter|facebook)$"),
+    platform: str = Query(..., pattern="^(wechat|weibo|twitter|facebook)$"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Any:
