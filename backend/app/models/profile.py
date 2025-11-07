@@ -46,15 +46,15 @@ class UserProfile(Base):
     novelty_preference = Column(Float, default=0.5)  # Preference for novel content (0-1)
 
     # Notification preferences
-    email_notifications = Column(Boolean, True)
-    push_notifications = Column(Boolean, True)
+    email_notifications = Column(Boolean, default=True)
+    push_notifications = Column(Boolean, default=True)
     notification_frequency = Column(String(20), default="daily")  # 'immediate', 'daily', 'weekly'
     notification_categories = Column(ARRAY(String), nullable=True)
 
     # Privacy settings
-    data_collection_allowed = Column(Boolean, True)
-    personalization_allowed = Column(Boolean, True)
-    analytics_sharing_allowed = Column(Boolean, False)
+    data_collection_allowed = Column(Boolean, default=True)
+    personalization_allowed = Column(Boolean, default=True)
+    analytics_sharing_allowed = Column(Boolean, default=False)
 
     # Demographics (enhanced)
     education_level = Column(String(50), nullable=True)

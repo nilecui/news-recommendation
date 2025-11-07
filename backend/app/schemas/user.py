@@ -44,7 +44,7 @@ class UserUpdate(BaseModel):
     avatar_url: Optional[str] = Field(None, max_length=500)
     bio: Optional[str] = None
     age: Optional[int] = Field(None, ge=13, le=120)
-    gender: Optional[str] = Field(None, regex=r'^(male|female|other)$')
+    gender: Optional[str] = Field(None, pattern=r'^(male|female|other)$')
     location: Optional[str] = Field(None, max_length=255)
     language: Optional[str] = Field(None, max_length=10)
 
@@ -101,14 +101,14 @@ class UserProfileUpdate(BaseModel):
     blocked_sources: Optional[List[str]] = None
     blocked_keywords: Optional[List[str]] = None
     preferred_language: Optional[str] = Field(None, max_length=10)
-    preferred_article_length: Optional[str] = Field(None, regex=r'^(short|medium|long)$')
-    reading_frequency: Optional[str] = Field(None, regex=r'^(low|medium|high)$')
+    preferred_article_length: Optional[str] = Field(None, pattern=r'^(short|medium|long)$')
+    reading_frequency: Optional[str] = Field(None, pattern=r'^(low|medium|high)$')
     quality_threshold: Optional[float] = Field(None, ge=0.0, le=1.0)
     diversity_preference: Optional[float] = Field(None, ge=0.0, le=1.0)
     novelty_preference: Optional[float] = Field(None, ge=0.0, le=1.0)
     email_notifications: Optional[bool] = None
     push_notifications: Optional[bool] = None
-    notification_frequency: Optional[str] = Field(None, regex=r'^(immediate|daily|weekly)$')
+    notification_frequency: Optional[str] = Field(None, pattern=r'^(immediate|daily|weekly)$')
     notification_categories: Optional[List[str]] = None
     data_collection_allowed: Optional[bool] = None
     personalization_allowed: Optional[bool] = None
@@ -139,10 +139,10 @@ class UserPreferenceItem(BaseModel):
 
 class UserPreferenceCreate(BaseModel):
     """Schema for creating user preference"""
-    preference_type: str = Field(..., regex=r'^(category|source|topic|author)$')
+    preference_type: str = Field(..., pattern=r'^(category|source|topic|author)$')
     preference_key: str = Field(..., max_length=255)
     preference_value: float = Field(..., ge=-1.0, le=1.0)
-    source: str = Field("explicit", regex=r'^(explicit|implicit|ml)$')
+    source: str = Field("explicit", pattern=r'^(explicit|implicit|ml)$')
     confidence: float = Field(1.0, ge=0.0, le=1.0)
     weight: float = Field(1.0, ge=0.0)
 
@@ -171,7 +171,7 @@ class UserStatsResponse(BaseModel):
 
 class UserHistoryRequest(BaseModel):
     """Schema for user history request"""
-    behavior_type: Optional[str] = Field(None, regex=r'^(read|like|share|bookmark)$')
+    behavior_type: Optional[str] = Field(None, pattern=r'^(read|like|share|bookmark)$')
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     category_id: Optional[int] = None
@@ -211,6 +211,6 @@ class UserRecommendationPreferences(BaseModel):
     categories: List[int] = Field(..., min_items=1, max_items=10)
     tags: Optional[List[str]] = Field(None, max_items=20)
     preferred_sources: Optional[List[str]] = None
-    article_length: str = Field("medium", regex=r'^(short|medium|long)$')
+    article_length: str = Field("medium", pattern=r'^(short|medium|long)$')
     diversity_preference: float = Field(0.5, ge=0.0, le=1.0)
     novelty_preference: float = Field(0.5, ge=0.0, le=1.0)

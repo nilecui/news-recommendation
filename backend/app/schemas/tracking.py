@@ -11,21 +11,21 @@ class BehaviorBase(BaseModel):
     """Base schema for user behavior"""
     user_id: int
     news_id: int
-    behavior_type: str = Field(..., regex=r'^(impression|click|read|like|share|comment|bookmark)$')
+    behavior_type: str = Field(..., pattern=r'^(impression|click|read|like|share|comment|bookmark)$')
     position: Optional[int] = Field(None, ge=0)
     page: int = Field(1, ge=1)
     context: Optional[Dict[str, Any]] = None
     duration: Optional[float] = Field(None, ge=0.0)
     scroll_percentage: Optional[float] = Field(None, ge=0.0, le=100.0)
     read_percentage: Optional[float] = Field(None, ge=0.0, le=100.0)
-    sentiment: Optional[str] = Field(None, regex=r'^(positive|negative|neutral)$')
+    sentiment: Optional[str] = Field(None, pattern=r'^(positive|negative|neutral)$')
     feedback_score: Optional[float] = Field(None, ge=1.0, le=5.0)
     feedback_text: Optional[str] = Field(None, max_length=1000)
     recommendation_id: Optional[str] = Field(None, max_length=100)
     algorithm_version: Optional[str] = Field(None, max_length=20)
     ab_test_group: Optional[str] = Field(None, max_length=20)
-    device_type: Optional[str] = Field(None, regex=r'^(mobile|desktop|tablet)$')
-    platform: Optional[str] = Field(None, regex=r'^(web|ios|android)$')
+    device_type: Optional[str] = Field(None, pattern=r'^(mobile|desktop|tablet)$')
+    platform: Optional[str] = Field(None, pattern=r'^(web|ios|android)$')
     session_id: Optional[str] = Field(None, max_length=100)
 
 
@@ -37,7 +37,7 @@ class BehaviorCreate(BehaviorBase):
 class BehaviorBatchItem(BaseModel):
     """Schema for a single behavior in batch tracking"""
     news_id: int
-    behavior_type: str = Field(..., regex=r'^(impression|click|read|like|share|comment|bookmark)$')
+    behavior_type: str = Field(..., pattern=r'^(impression|click|read|like|share|comment|bookmark)$')
     position: Optional[int] = Field(None, ge=0)
     page: int = Field(1, ge=1)
     context: Optional[Dict[str, Any]] = None
@@ -51,8 +51,8 @@ class BehaviorBatchRequest(BaseModel):
     """Schema for batch behavior tracking request"""
     behaviors: List[BehaviorBatchItem] = Field(..., min_items=1, max_items=100)
     session_id: Optional[str] = Field(None, max_length=100)
-    device_type: Optional[str] = Field(None, regex=r'^(mobile|desktop|tablet)$')
-    platform: Optional[str] = Field(None, regex=r'^(web|ios|android)$')
+    device_type: Optional[str] = Field(None, pattern=r'^(mobile|desktop|tablet)$')
+    platform: Optional[str] = Field(None, pattern=r'^(web|ios|android)$')
     recommendation_id: Optional[str] = Field(None, max_length=100)
     algorithm_version: Optional[str] = Field(None, max_length=20)
 
@@ -128,14 +128,14 @@ class ReadRequest(BaseModel):
 class InteractionRequest(BaseModel):
     """Schema for interaction tracking (like, share, bookmark)"""
     news_id: int
-    interaction_type: str = Field(..., regex=r'^(like|share|bookmark|comment)$')
+    interaction_type: str = Field(..., pattern=r'^(like|share|bookmark|comment)$')
     feedback_text: Optional[str] = Field(None, max_length=1000)
 
 
 class SessionStartRequest(BaseModel):
     """Schema for session start tracking"""
-    device_type: Optional[str] = Field(None, regex=r'^(mobile|desktop|tablet)$')
-    platform: Optional[str] = Field(None, regex=r'^(web|ios|android)$')
+    device_type: Optional[str] = Field(None, pattern=r'^(mobile|desktop|tablet)$')
+    platform: Optional[str] = Field(None, pattern=r'^(web|ios|android)$')
 
 
 class SessionStartResponse(BaseModel):
@@ -149,10 +149,10 @@ class BehaviorStatsRequest(BaseModel):
     """Schema for behavior statistics request"""
     user_id: Optional[int] = None
     news_id: Optional[int] = None
-    behavior_type: Optional[str] = Field(None, regex=r'^(impression|click|read|like|share|comment|bookmark)$')
+    behavior_type: Optional[str] = Field(None, pattern=r'^(impression|click|read|like|share|comment|bookmark)$')
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
-    group_by: str = Field("day", regex=r'^(hour|day|week|month)$')
+    group_by: str = Field("day", pattern=r'^(hour|day|week|month)$')
 
 
 class BehaviorStatsResponse(BaseModel):

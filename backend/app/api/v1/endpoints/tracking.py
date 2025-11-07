@@ -10,7 +10,7 @@ from app.config.database import get_db
 from app.models.user import User
 from app.schemas.tracking import BehaviorBatchRequest, BehaviorResponse
 from app.services.tracking.tracking_service import TrackingService
-from app.services.auth.auth_service import get_current_user
+from app.services.auth.dependencies import get_current_user
 
 router = APIRouter()
 

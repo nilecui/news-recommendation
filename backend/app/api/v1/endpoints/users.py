@@ -10,7 +10,7 @@ from app.config.database import get_db
 from app.models.user import User
 from app.schemas.user import UserResponse, UserUpdate, UserProfile
 from app.services.user.user_service import UserService
-from app.services.auth.auth_service import get_current_user
+from app.services.auth.dependencies import get_current_user
 
 router = APIRouter()
 
