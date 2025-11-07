@@ -36,7 +36,12 @@ export const useAuthStore = create<AuthState>()(
 
       // Initialize auth state from stored data
       initialize: async () => {
-        const { tokens } = get()
+        const { tokens, isInitialized } = get()
+        
+        // Already initialized, skip
+        if (isInitialized) {
+          return
+        }
 
         if (!tokens) {
           set({ isInitialized: true })
@@ -63,14 +68,23 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: false
             })
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('Auth initialization failed:', error)
-          set({
-            user: null,
-            tokens: null,
-            isAuthenticated: false,
-            error: 'Failed to initialize authentication'
-          })
+          // If it's a 401 error, token is invalid, clear it silently
+          if (error.response?.status === 401) {
+            set({
+              user: null,
+              tokens: null,
+              isAuthenticated: false,
+              error: null
+            })
+          } else {
+            // Other errors, keep tokens but mark as not authenticated
+            set({
+              isAuthenticated: false,
+              error: null // Don't show error on initialization failure
+            })
+          }
         } finally {
           set({ isLoading: false, isInitialized: true })
         }

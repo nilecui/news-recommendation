@@ -38,11 +38,17 @@ export default defineConfig({
     }
   },
   server: {
+    host: '0.0.0.0', // Allow external connections
     port: 3000,
+    hmr: {
+      host: 'localhost', // Use localhost for HMR WebSocket
+      port: 3000,
+    },
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true
+        target: process.env.VITE_API_BASE_URL?.replace('/api/v1', '') || 'http://192.168.12.225:8311',
+        changeOrigin: true,
+        rewrite: (path) => path
       }
     }
   },

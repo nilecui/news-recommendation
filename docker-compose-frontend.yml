@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # Frontend React Application (Development Mode)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: news_frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      # 使用环境变量或直接指定后端地址
+      # 如果后端在 docker 网络中，使用: http://backend:8000/api/v1
+      # 如果后端在宿主机上，使用: http://192.168.12.225:8311/api/v1
+      - VITE_API_BASE_URL=http://192.168.12.225:8311/api/v1
+      - VITE_API_URL=http://192.168.12.225:8311/api/v1
+      - NODE_ENV=development
+    networks:
+      - news_network
+    restart: unless-stopped
+
+networks:
+  news_network:
+    driver: bridge
