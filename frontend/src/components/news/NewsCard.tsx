@@ -21,6 +21,7 @@ import { useVisibilityTracker } from '../../hooks/useVisibilityTracker';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
+import './NewsCard.css';
 
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
@@ -168,7 +169,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
         hoverable
         cover={cover}
         actions={actions}
-        style={{ marginBottom: 16 }}
+        className={`news-card ${layout === 'horizontal' ? 'news-card-horizontal' : ''}`}
       >
         <Space direction="vertical" size="small" style={{ width: '100%' }}>
           {/* Tags */}
@@ -181,7 +182,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
           </Space>
 
           {/* Title */}
-          <Title level={5} ellipsis={{ rows: 2 }} style={{ marginBottom: 8 }}>
+          <Title level={5} ellipsis={{ rows: 2 }} className="news-card-title">
             {news.title_zh || news.title}
           </Title>
 
@@ -190,7 +191,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
             <Paragraph
               ellipsis={{ rows: 2 }}
               type="secondary"
-              style={{ marginBottom: 8 }}
+              className="news-card-summary"
             >
               {news.summary_zh || news.summary}
             </Paragraph>
