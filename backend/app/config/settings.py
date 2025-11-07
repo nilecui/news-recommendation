@@ -70,13 +70,6 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 100
 
-    @validator("DATABASE_URL", pre=True)
-    def assemble_db_connection(cls, v: Optional[str], values: dict) -> str:
-        """Construct database URL if not provided"""
-        if isinstance(v, str) and v:
-            return v
-        return f"postgresql://{values.get('DB_USER')}:{values.get('DB_PASSWORD')}@{values.get('DB_HOST')}/{values.get('DB_NAME')}"
-
     @validator("ALLOWED_HOSTS", pre=True)
     def assemble_cors_origins(cls, v: str | List[str]) -> List[str]:
         """Parse CORS origins"""
@@ -87,8 +80,11 @@ class Settings(BaseSettings):
         raise ValueError(v)
 
     class Config:
+        # .env file is in backend/ directory (BASE_DIR already points to backend/)
         env_file = os.path.join(BASE_DIR, ".env")
+        env_file_encoding = 'utf-8'
         case_sensitive = True
+        extra = "allow"  # Allow extra fields in .env
 
 
 # Create settings instance
