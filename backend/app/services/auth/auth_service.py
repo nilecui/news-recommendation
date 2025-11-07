@@ -25,6 +25,23 @@ class AuthService:
         self.db = db
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         self.redis_url = settings.REDIS_URL
+        self._redis_pool: Optional[aioredis.Redis] = None
+
+    async def get_redis(self) -> aioredis.Redis:
+        """Get Redis connection from pool"""
+        if self._redis_pool is None:
+            self._redis_pool = await aioredis.from_url(
+                self.redis_url,
+                encoding="utf-8",
+                decode_responses=True
+            )
+        return self._redis_pool
+
+    async def close_redis(self) -> None:
+        """Close Redis connection pool"""
+        if self._redis_pool is not None:
+            await self._redis_pool.close()
+            self._redis_pool = None
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify a password against its hash"""
@@ -79,52 +96,44 @@ class AuthService:
 
         return db_user
 
-    def create_access_token(self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
-        """Create JWT access token"""
+    def _create_token_internal(self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None, token_type: str = "access") -> str:
+        """Internal method to create JWT token"""
         to_encode = data.copy()
         if expires_delta:
             expire = datetime.utcnow() + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            if token_type == "access":
+                expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            else:
+                expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
-        to_encode.update({"exp": expire, "type": "access"})
-        encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-        return encoded_jwt
-
-    def create_refresh_token(self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
-        """Create JWT refresh token"""
-        to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.utcnow() + expires_delta
-        else:
-            expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-
-        to_encode.update({"exp": expire, "type": "refresh"})
+        to_encode.update({"exp": expire, "type": token_type})
         encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
         return encoded_jwt
 
     async def create_access_token(self, email: str) -> str:
         """Create access token for user"""
-        return self.create_access_token(
+        return self._create_token_internal(
             data={"sub": email},
-            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+            token_type="access"
         )
 
     async def create_refresh_token(self, email: str) -> str:
         """Create refresh token for user"""
-        refresh_token = self.create_refresh_token(
+        refresh_token = self._create_token_internal(
             data={"sub": email},
-            expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+            expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+            token_type="refresh"
         )
 
         # Store refresh token in Redis for validation
-        redis = await aioredis.from_url(self.redis_url)
+        redis = await self.get_redis()
         await redis.setex(
             f"refresh_token:{email}",
             settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
             refresh_token
         )
-        await redis.close()
 
         return refresh_token
 
@@ -152,9 +161,8 @@ class AuthService:
             return None
 
         # Then check if token exists in Redis
-        redis = await aioredis.from_url(self.redis_url)
+        redis = await self.get_redis()
         stored_token = await redis.get(f"refresh_token:{token_data.email}")
-        await redis.close()
 
         if stored_token != refresh_token:
             return None
@@ -181,15 +189,13 @@ class AuthService:
 
     async def logout_user(self, email: str) -> None:
         """Logout user by removing refresh token from Redis"""
-        redis = await aioredis.from_url(self.redis_url)
+        redis = await self.get_redis()
         await redis.delete(f"refresh_token:{email}")
-        await redis.close()
 
     async def is_token_blacklisted(self, token: str) -> bool:
         """Check if token is blacklisted"""
-        redis = await aioredis.from_url(self.redis_url)
+        redis = await self.get_redis()
         blacklisted = await redis.exists(f"blacklist:{token}")
-        await redis.close()
         return blacklisted
 
     async def blacklist_token(self, token: str, expires_delta: Optional[timedelta] = None) -> None:
@@ -197,13 +203,12 @@ class AuthService:
         if not expires_delta:
             expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-        redis = await aioredis.from_url(self.redis_url)
+        redis = await self.get_redis()
         await redis.setex(
             f"blacklist:{token}",
             int(expires_delta.total_seconds()),
             "1"
         )
-        await redis.close()
 
     async def change_password(self, user: User, current_password: str, new_password: str) -> bool:
         """Change user password"""
