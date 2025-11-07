@@ -30,8 +30,8 @@ class NewsCategory(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Self-referential relationship for subcategories
-    parent = relationship("NewsCategory", remote_side=[id])
-    children = relationship("NewsCategory")
+    parent = relationship("NewsCategory", remote_side=[id], back_populates="children")
+    children = relationship("NewsCategory", back_populates="parent", overlaps="parent")
 
     def __repr__(self):
         return f"<NewsCategory(id={self.id}, name={self.name})>"
@@ -106,7 +106,7 @@ class News(Base):
     meta_keywords = Column(Text, nullable=True)
 
     # Additional metadata as JSON
-    metadata = Column(JSON, nullable=True)  # Additional structured data
+    extra_metadata = Column(JSON, nullable=True, name="metadata")  # Additional structured data
 
     # Relationships
     behaviors = relationship("UserBehavior", back_populates="news", cascade="all, delete-orphan")

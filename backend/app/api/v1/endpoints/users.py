@@ -8,7 +8,7 @@ from typing import List, Any
 
 from app.config.database import get_db
 from app.models.user import User
-from app.schemas.user import UserResponse, UserUpdate, UserProfile
+from app.schemas.user import UserResponse, UserUpdate, UserProfileResponse, UserProfileUpdate
 from app.services.user.user_service import UserService
 from app.services.auth.dependencies import get_current_user
 
@@ -39,7 +39,7 @@ async def update_current_user(
     return updated_user
 
 
-@router.get("/me/profile", response_model=UserProfile)
+@router.get("/me/profile", response_model=UserProfileResponse)
 async def get_user_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -49,12 +49,15 @@ async def get_user_profile(
     """
     user_service = UserService(db)
     profile = await user_service.get_user_profile(current_user.id)
+    if not profile:
+        # Create profile if it doesn't exist
+        profile = await user_service.create_user_profile(current_user.id)
     return profile
 
 
-@router.put("/me/profile", response_model=UserProfile)
+@router.put("/me/profile", response_model=UserProfileResponse)
 async def update_user_profile(
-    profile_data: dict,
+    profile_data: UserProfileUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Any:

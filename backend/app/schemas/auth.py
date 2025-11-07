@@ -3,7 +3,8 @@ Authentication schemas for request/response validation
 """
 
 from typing import Optional
-from pydantic import BaseModel, EmailStr, validator
+from datetime import datetime
+from pydantic import BaseModel, EmailStr, validator, ConfigDict
 
 
 class TokenData(BaseModel):
@@ -93,14 +94,13 @@ class UserResponse(UserBase):
     gender: Optional[str] = None
     location: Optional[str] = None
     language: str
-    created_at: str
-    last_login_at: Optional[str] = None
+    created_at: datetime
+    last_login_at: Optional[datetime] = None
     reading_count: int
     like_count: int
     share_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LoginRequest(BaseModel):

@@ -5,11 +5,12 @@ Authentication service implementation
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 import redis.asyncio as aioredis
 import json
+import hashlib
+import bcrypt
 
 from app.config.settings import settings
 from app.models.user import User
@@ -23,7 +24,6 @@ class AuthService:
 
     def __init__(self, db: Session):
         self.db = db
-        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         self.redis_url = settings.REDIS_URL
         self._redis_pool: Optional[aioredis.Redis] = None
 
@@ -44,12 +44,43 @@ class AuthService:
             self._redis_pool = None
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        """Verify a password against its hash"""
-        return self.pwd_context.verify(plain_password, hashed_password)
+        """Verify a password against its hash
+        
+        Uses bcrypt directly to avoid passlib initialization issues.
+        For passwords > 72 bytes, pre-hashes with SHA256.
+        """
+        password_bytes = plain_password.encode('utf-8')
+        
+        # bcrypt has a 72-byte limit, so pre-hash longer passwords with SHA256
+        if len(password_bytes) > 72:
+            # Pre-hash with SHA256 before verification (consistent with get_password_hash)
+            pre_hashed = hashlib.sha256(password_bytes).hexdigest()
+            password_to_check = pre_hashed.encode('utf-8')
+        else:
+            password_to_check = password_bytes
+        
+        try:
+            return bcrypt.checkpw(password_to_check, hashed_password.encode('utf-8'))
+        except Exception:
+            return False
 
     def get_password_hash(self, password: str) -> str:
-        """Generate password hash"""
-        return self.pwd_context.hash(password)
+        """Generate password hash using bcrypt directly
+        
+        Note: bcrypt has a 72-byte limit. For longer passwords, we use SHA256
+        to pre-hash the password before bcrypt, which is a common practice.
+        """
+        password_bytes = password.encode('utf-8')
+        
+        # bcrypt has a 72-byte limit, so pre-hash longer passwords with SHA256
+        if len(password_bytes) > 72:
+            # Pre-hash with SHA256 to handle longer passwords
+            password_bytes = hashlib.sha256(password_bytes).hexdigest().encode('utf-8')
+        
+        # Generate salt and hash password
+        salt = bcrypt.gensalt(rounds=12)
+        hashed = bcrypt.hashpw(password_bytes, salt)
+        return hashed.decode('utf-8')
 
     async def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email"""

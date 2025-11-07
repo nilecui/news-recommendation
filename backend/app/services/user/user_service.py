@@ -9,6 +9,8 @@ from fastapi import HTTPException, status
 
 from app.models.user import User
 from app.models.profile import UserProfile, UserPreference
+from app.models.behavior import UserBehavior
+from app.models.news import News
 from app.schemas.user import (
     UserUpdate,
     UserProfileUpdate,
@@ -293,4 +295,89 @@ class UserService:
             "member_since": user.created_at,
             "profile_completeness": profile.profile_completeness if profile else 0.0,
             "is_cold_start_user": profile.is_cold_start_user if profile else True
+        }
+
+    # ========== User Reading History and Collections ==========
+
+    async def get_reading_history(self, user_id: int, page: int = 1, limit: int = 20) -> dict:
+        """Get user's reading history"""
+        offset = (page - 1) * limit
+        
+        # Get reading behaviors (behavior_type = 'read')
+        behaviors = self.db.query(UserBehavior).filter(
+            UserBehavior.user_id == user_id,
+            UserBehavior.behavior_type == 'read'
+        ).order_by(UserBehavior.timestamp.desc()).offset(offset).limit(limit).all()
+        
+        total = self.db.query(UserBehavior).filter(
+            UserBehavior.user_id == user_id,
+            UserBehavior.behavior_type == 'read'
+        ).count()
+        
+        # Get news details for each behavior
+        history_items = []
+        for behavior in behaviors:
+            news = self.db.query(News).filter(News.id == behavior.news_id).first()
+            if news:
+                history_items.append({
+                    "news_id": news.id,
+                    "title": news.title,
+                    "title_zh": news.title_zh,
+                    "summary": news.summary,
+                    "image_url": news.image_url,
+                    "source": news.source,
+                    "category_id": news.category_id,
+                    "published_at": news.published_at.isoformat() if news.published_at else None,
+                    "read_at": behavior.timestamp.isoformat() if behavior.timestamp else None,
+                    "duration": behavior.duration,
+                    "read_percentage": behavior.read_percentage,
+                    "scroll_percentage": behavior.scroll_percentage
+                })
+        
+        return {
+            "items": history_items,
+            "total": total,
+            "page": page,
+            "page_size": limit,
+            "has_next": offset + limit < total
+        }
+
+    async def get_user_collections(self, user_id: int, page: int = 1, limit: int = 20) -> dict:
+        """Get user's collected/bookmarked news"""
+        offset = (page - 1) * limit
+        
+        # Get bookmark behaviors (behavior_type = 'bookmark')
+        behaviors = self.db.query(UserBehavior).filter(
+            UserBehavior.user_id == user_id,
+            UserBehavior.behavior_type == 'bookmark'
+        ).order_by(UserBehavior.timestamp.desc()).offset(offset).limit(limit).all()
+        
+        total = self.db.query(UserBehavior).filter(
+            UserBehavior.user_id == user_id,
+            UserBehavior.behavior_type == 'bookmark'
+        ).count()
+        
+        # Get news details for each behavior
+        collection_items = []
+        for behavior in behaviors:
+            news = self.db.query(News).filter(News.id == behavior.news_id).first()
+            if news:
+                collection_items.append({
+                    "news_id": news.id,
+                    "title": news.title,
+                    "title_zh": news.title_zh,
+                    "summary": news.summary,
+                    "image_url": news.image_url,
+                    "source": news.source,
+                    "category_id": news.category_id,
+                    "published_at": news.published_at.isoformat() if news.published_at else None,
+                    "collected_at": behavior.timestamp.isoformat() if behavior.timestamp else None
+                })
+        
+        return {
+            "items": collection_items,
+            "total": total,
+            "page": page,
+            "page_size": limit,
+            "has_next": offset + limit < total
         }

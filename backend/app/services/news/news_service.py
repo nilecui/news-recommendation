@@ -12,6 +12,7 @@ import json
 
 from app.config.settings import settings
 from app.models.news import News, NewsCategory
+from app.models.behavior import UserBehavior
 from app.schemas.news import (
     NewsCreate,
     NewsUpdate,
@@ -352,6 +353,124 @@ class NewsService:
         await redis.hincrby(f"news_stats:{news_id}", "share_count", 1)
 
         return True
+
+    async def toggle_like(self, news_id: int, user_id: int) -> dict:
+        """Toggle like status for news (like/unlike)"""
+        news = await self.get_news_by_id(news_id, increment_view=False)
+        if not news:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="News not found"
+            )
+
+        # Check if user already liked this news
+        existing_behavior = self.db.query(UserBehavior).filter(
+            UserBehavior.user_id == user_id,
+            UserBehavior.news_id == news_id,
+            UserBehavior.behavior_type == 'like'
+        ).first()
+
+        if existing_behavior:
+            # Unlike: delete behavior and decrement count
+            self.db.delete(existing_behavior)
+            news.like_count = max(0, news.like_count - 1)
+            self.db.commit()
+            liked = False
+        else:
+            # Like: create behavior and increment count
+            behavior = UserBehavior(
+                user_id=user_id,
+                news_id=news_id,
+                behavior_type='like',
+                timestamp=datetime.utcnow()
+            )
+            self.db.add(behavior)
+            news.like_count += 1
+            self.db.commit()
+            liked = True
+
+        # Update in Redis
+        redis = await self.get_redis()
+        await redis.hset(f"news_stats:{news_id}", "like_count", news.like_count)
+
+        return {
+            "news_id": news_id,
+            "liked": liked,
+            "like_count": news.like_count
+        }
+
+    async def toggle_collect(self, news_id: int, user_id: int) -> dict:
+        """Toggle collect/bookmark status for news"""
+        news = await self.get_news_by_id(news_id, increment_view=False)
+        if not news:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="News not found"
+            )
+
+        # Check if user already collected this news
+        existing_behavior = self.db.query(UserBehavior).filter(
+            UserBehavior.user_id == user_id,
+            UserBehavior.news_id == news_id,
+            UserBehavior.behavior_type == 'bookmark'
+        ).first()
+
+        if existing_behavior:
+            # Uncollect: delete behavior
+            self.db.delete(existing_behavior)
+            self.db.commit()
+            collected = False
+        else:
+            # Collect: create behavior
+            behavior = UserBehavior(
+                user_id=user_id,
+                news_id=news_id,
+                behavior_type='bookmark',
+                timestamp=datetime.utcnow()
+            )
+            self.db.add(behavior)
+            self.db.commit()
+            collected = True
+
+        return {
+            "news_id": news_id,
+            "collected": collected,
+            "message": "News collected" if collected else "News uncollected"
+        }
+
+    async def record_share(self, news_id: int, user_id: int, platform: str) -> dict:
+        """Record news sharing"""
+        news = await self.get_news_by_id(news_id, increment_view=False)
+        if not news:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="News not found"
+            )
+
+        # Create share behavior
+        behavior = UserBehavior(
+            user_id=user_id,
+            news_id=news_id,
+            behavior_type='share',
+            context={"platform": platform},
+            timestamp=datetime.utcnow()
+        )
+        self.db.add(behavior)
+
+        # Increment share count
+        news.share_count += 1
+        self.db.commit()
+
+        # Update in Redis
+        redis = await self.get_redis()
+        await redis.hincrby(f"news_stats:{news_id}", "share_count", 1)
+
+        return {
+            "news_id": news_id,
+            "platform": platform,
+            "share_count": news.share_count,
+            "message": "Share recorded successfully"
+        }
 
     # ========== Helper Methods ==========
 

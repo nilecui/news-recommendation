@@ -4,7 +4,7 @@ User schemas for request/response validation
 
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, EmailStr, validator
+from pydantic import BaseModel, Field, EmailStr, validator, ConfigDict
 
 
 class UserBase(BaseModel):
@@ -79,7 +79,7 @@ class UserProfileResponse(BaseModel):
     education_level: Optional[str] = None
     occupation: Optional[str] = None
     interests: Optional[List[str]] = None
-    model_version: Optional[str] = None
+    ml_model_version: Optional[str] = Field(None, alias="model_version", serialization_alias="model_version")  # Renamed to avoid Pydantic conflict
     last_profile_update: datetime
     profile_confidence: float
     created_at: datetime
@@ -89,8 +89,11 @@ class UserProfileResponse(BaseModel):
     is_cold_start_user: Optional[bool] = None
     profile_completeness: Optional[float] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,  # Allow both field name and alias
+        protected_namespaces=()  # Disable protected namespace warning for model_version
+    )
 
 
 class UserProfileUpdate(BaseModel):

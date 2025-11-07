@@ -2,20 +2,20 @@
 User behavior tracking endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List, Any
+from typing import List, Any, Optional
 
 from app.config.database import get_db
 from app.models.user import User
-from app.schemas.tracking import BehaviorBatchRequest, BehaviorResponse
+from app.schemas.tracking import BehaviorBatchRequest, BehaviorBatchResponse
 from app.services.tracking.tracking_service import TrackingService
 from app.services.auth.dependencies import get_current_user
 
 router = APIRouter()
 
 
-@router.post("/behaviors", response_model=BehaviorResponse)
+@router.post("/behaviors", response_model=BehaviorBatchResponse)
 async def track_behaviors(
     behavior_data: BehaviorBatchRequest,
     current_user: User = Depends(get_current_user),
@@ -25,24 +25,25 @@ async def track_behaviors(
     Track user behaviors in batch
     """
     tracking_service = TrackingService(db)
-
-    # Validate that all behaviors belong to the current user
-    for behavior in behavior_data.behaviors:
-        if behavior.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cannot track behaviors for other users"
-            )
-
-    result = await tracking_service.track_behaviors(behavior_data.behaviors)
-    return result
+    result = await tracking_service.track_behaviors_batch(
+        user_id=current_user.id,
+        batch_request=behavior_data
+    )
+    return {
+        "success": result["success"],
+        "message": f"Processed {result['total_processed']} behaviors",
+        "total_processed": result["total_processed"],
+        "total_failed": result["total_failed"],
+        "failed_indices": result["failed_indices"]
+    }
 
 
 @router.post("/impression")
 async def track_impression(
-    news_id: int,
-    position: int,
-    context: dict = None,
+    news_id: int = Query(..., description="News ID"),
+    position: int = Query(0, description="Position in list"),
+    page: int = Query(1, ge=1, description="Page number"),
+    recommendation_id: Optional[str] = Query(None, description="Recommendation batch ID"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Any:
@@ -52,18 +53,19 @@ async def track_impression(
     tracking_service = TrackingService(db)
     result = await tracking_service.track_impression(
         user_id=current_user.id,
-        news_id=news_id,
-        position=position,
-        context=context or {}
+        news_ids=[news_id],
+        page=page,
+        recommendation_id=recommendation_id
     )
-    return result
+    return {"success": True, "impressions_recorded": result}
 
 
 @router.post("/click")
 async def track_click(
-    news_id: int,
-    position: int,
-    context: dict = None,
+    news_id: int = Query(..., description="News ID"),
+    position: Optional[int] = Query(None, ge=0, description="Position in list"),
+    page: int = Query(1, ge=1, description="Page number"),
+    recommendation_id: Optional[str] = Query(None, description="Recommendation batch ID"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Any:
@@ -75,17 +77,23 @@ async def track_click(
         user_id=current_user.id,
         news_id=news_id,
         position=position,
-        context=context or {}
+        page=page,
+        recommendation_id=recommendation_id
     )
-    return result
+    return {
+        "success": True,
+        "behavior_id": result.id,
+        "news_id": result.news_id,
+        "behavior_type": result.behavior_type
+    }
 
 
 @router.post("/read")
 async def track_read(
-    news_id: int,
-    duration: int,
-    scroll_percentage: float = None,
-    context: dict = None,
+    news_id: int = Query(..., description="News ID"),
+    duration: float = Query(..., ge=0.0, description="Reading duration in seconds"),
+    scroll_percentage: Optional[float] = Query(None, ge=0.0, le=100.0, description="Scroll percentage"),
+    read_percentage: Optional[float] = Query(None, ge=0.0, le=100.0, description="Read percentage"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Any:
@@ -98,9 +106,15 @@ async def track_read(
         news_id=news_id,
         duration=duration,
         scroll_percentage=scroll_percentage,
-        context=context or {}
+        read_percentage=read_percentage
     )
-    return result
+    return {
+        "success": True,
+        "behavior_id": result.id,
+        "news_id": result.news_id,
+        "duration": result.duration,
+        "read_percentage": result.read_percentage
+    }
 
 
 @router.get("/stats")
