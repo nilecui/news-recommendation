@@ -1,10 +1,122 @@
-import React from 'react'
-import { Typography, Card, Row, Col, Space } from 'antd'
+import React, { useState, useEffect } from 'react'
+import { Typography, Card, Row, Col, Tabs, Button, Space, Spin, Empty, Tag } from 'antd'
+import { ReloadOutlined, FireOutlined, StarOutlined, ClockCircleOutlined } from '@ant-design/icons'
 import { Helmet } from 'react-helmet-async'
+import { useNavigate } from 'react-router-dom'
+import InfiniteScroll from 'react-infinite-scroll-component'
 
-const { Title, Text } = Typography
+import { NewsCard } from '@/components/news/NewsCard'
+import { recommendationService, type RecommendationResponse } from '@/services/recommendationService'
+import { newsService } from '@/services/newsService'
+import type { News } from '@/types'
+import './HomePage.css'
+
+const { Title, Text, Paragraph } = Typography
 
 const HomePage: React.FC = () => {
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState('recommend')
+  const [recommendations, setRecommendations] = useState<RecommendationResponse | null>(null)
+  const [featuredNews, setFeaturedNews] = useState<News[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [page, setPage] = useState(1)
+
+  // Load initial data
+  useEffect(() => {
+    loadInitialData()
+  }, [activeTab])
+
+  const loadInitialData = async () => {
+    setLoading(true)
+    try {
+      // Load recommendations based on active tab
+      let data: RecommendationResponse
+
+      if (activeTab === 'recommend') {
+        data = await recommendationService.getPersonalizedRecommendations({ page: 1, page_size: 20 })
+      } else if (activeTab === 'popular') {
+        data = await recommendationService.getPopularNews({ timeframe: '24h', page: 1, page_size: 20 })
+      } else {
+        data = await recommendationService.getDiscoveryRecommendations(20)
+      }
+
+      setRecommendations(data)
+      setPage(1)
+
+      // Load featured news for hero section (only on first load)
+      if (featuredNews.length === 0) {
+        const trending = await newsService.getTrendingNews({ timeRange: '24h', limit: 3 })
+        setFeaturedNews(trending)
+      }
+    } catch (error) {
+      console.error('Failed to load data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadMore = async () => {
+    if (!recommendations?.has_next) return
+
+    try {
+      const nextPage = page + 1
+      let data: RecommendationResponse
+
+      if (activeTab === 'recommend') {
+        data = await recommendationService.getPersonalizedRecommendations({ page: nextPage, page_size: 20 })
+      } else if (activeTab === 'popular') {
+        data = await recommendationService.getPopularNews({ timeframe: '24h', page: nextPage, page_size: 20 })
+      } else {
+        data = await recommendationService.getDiscoveryRecommendations(20)
+      }
+
+      setRecommendations(prev => ({
+        ...data,
+        items: [...(prev?.items || []), ...data.items]
+      }))
+      setPage(nextPage)
+    } catch (error) {
+      console.error('Failed to load more:', error)
+    }
+  }
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await loadInitialData()
+    setRefreshing(false)
+  }
+
+  const tabItems = [
+    {
+      key: 'recommend',
+      label: (
+        <Space>
+          <StarOutlined />
+          <span>为您推荐</span>
+        </Space>
+      ),
+    },
+    {
+      key: 'popular',
+      label: (
+        <Space>
+          <FireOutlined />
+          <span>热门</span>
+        </Space>
+      ),
+    },
+    {
+      key: 'discover',
+      label: (
+        <Space>
+          <ClockCircleOutlined />
+          <span>发现</span>
+        </Space>
+      ),
+    },
+  ]
+
   return (
     <>
       <Helmet>
@@ -12,41 +124,144 @@ const HomePage: React.FC = () => {
         <meta name="description" content="为您推荐个性化的新闻内容" />
       </Helmet>
 
-      <div className="space-y-6">
-        <div>
-          <Title level={2}>为您推荐</Title>
-          <Text type="secondary">基于您的阅读历史和兴趣偏好</Text>
-        </div>
+      <div className="home-page">
+        {/* Hero Section with Featured News */}
+        {featuredNews.length > 0 && (
+          <div className="hero-section fade-in-scale">
+            <Card className="hero-card glass-effect" bordered={false}>
+              <Row gutter={[24, 24]}>
+                <Col xs={24} lg={14}>
+                  <div className="hero-main" onClick={() => navigate(`/news/${featuredNews[0]?.id}`)}>
+                    {featuredNews[0]?.image_url && (
+                      <div className="hero-image">
+                        <img src={featuredNews[0].image_url} alt={featuredNews[0].title} />
+                        <div className="hero-overlay">
+                          <Tag color="red" className="featured-tag">
+                            <FireOutlined /> 今日头条
+                          </Tag>
+                        </div>
+                      </div>
+                    )}
+                    <div className="hero-content">
+                      <Title level={2} className="hero-title">
+                        {featuredNews[0]?.title_zh || featuredNews[0]?.title}
+                      </Title>
+                      <Paragraph className="hero-description" ellipsis={{ rows: 2 }}>
+                        {featuredNews[0]?.summary_zh || featuredNews[0]?.summary}
+                      </Paragraph>
+                      <Space>
+                        <Text type="secondary">{featuredNews[0]?.source}</Text>
+                        <Text type="secondary">•</Text>
+                        <Text type="secondary">{featuredNews[0]?.view_count} 阅读</Text>
+                      </Space>
+                    </div>
+                  </div>
+                </Col>
 
-        <Row gutter={[16, 16]}>
-          {[1, 2, 3, 4, 5, 6].map(i => (
-            <Col xs={24} sm={12} lg={8} xl={6} key={i}>
-              <Card
-                hoverable
-                cover={
-                  <div className="h-48 bg-gray-200 flex items-center justify-center">
-                    <Text type="secondary">新闻图片 {i}</Text>
+                <Col xs={24} lg={10}>
+                  <div className="hero-sidebar">
+                    <Title level={4} className="sidebar-title">
+                      <FireOutlined /> 热门推荐
+                    </Title>
+                    <Space direction="vertical" size="middle" className="w-full">
+                      {featuredNews.slice(1, 3).map((news, index) => (
+                        <Card
+                          key={news.id}
+                          className="sidebar-card hover-lift"
+                          size="small"
+                          hoverable
+                          onClick={() => navigate(`/news/${news.id}`)}
+                        >
+                          <Space align="start">
+                            <div className="sidebar-number gradient-bg">
+                              {index + 2}
+                            </div>
+                            <div className="sidebar-content">
+                              <Title level={5} ellipsis={{ rows: 2 }} className="sidebar-news-title">
+                                {news.title_zh || news.title}
+                              </Title>
+                              <Text type="secondary" className="text-xs">
+                                {news.source} · {news.view_count} 阅读
+                              </Text>
+                            </div>
+                          </Space>
+                        </Card>
+                      ))}
+                    </Space>
+                  </div>
+                </Col>
+              </Row>
+            </Card>
+          </div>
+        )}
+
+        {/* Main Content Section */}
+        <div className="content-section slide-in-up">
+          <Card className="content-card" bordered={false}>
+            <div className="content-header">
+              <Tabs
+                activeKey={activeTab}
+                items={tabItems}
+                onChange={setActiveTab}
+                size="large"
+                className="content-tabs"
+              />
+              <Button
+                icon={<ReloadOutlined spin={refreshing} />}
+                onClick={handleRefresh}
+                loading={refreshing}
+                type="text"
+              >
+                刷新
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="loading-container">
+                <Spin size="large" tip="加载中..." />
+              </div>
+            ) : recommendations && recommendations.items.length > 0 ? (
+              <InfiniteScroll
+                dataLength={recommendations.items.length}
+                next={loadMore}
+                hasMore={recommendations.has_next}
+                loader={
+                  <div className="loading-container">
+                    <Spin />
                   </div>
                 }
-                className="h-full"
+                endMessage={
+                  <div className="end-message">
+                    <Text type="secondary">没有更多内容了</Text>
+                  </div>
+                }
               >
-                <Card.Meta
-                  title={`新闻标题 ${i}`}
-                  description={
-                    <Space direction="vertical" size="small">
-                      <Text type="secondary" className="text-truncate-2">
-                        这是一段新闻摘要内容，描述了新闻的主要内容和要点...
-                      </Text>
-                      <Text type="secondary" className="text-xs">
-                        科技频道 · 2小时前
-                      </Text>
-                    </Space>
-                  }
-                />
-              </Card>
-            </Col>
-          ))}
-        </Row>
+                <Row gutter={[16, 16]}>
+                  {recommendations.items.map((item, index) => (
+                    <Col xs={24} sm={12} lg={8} xl={6} key={`${item.id}-${index}`}>
+                      <div className="news-card-wrapper fade-in">
+                        <NewsCard
+                          news={item}
+                          position={item.position}
+                          page={recommendations.page}
+                          recommendationId={recommendations.recommendation_id}
+                          layout="vertical"
+                          showActions={true}
+                          showImage={true}
+                        />
+                      </div>
+                    </Col>
+                  ))}
+                </Row>
+              </InfiniteScroll>
+            ) : (
+              <Empty
+                description="暂无推荐内容"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            )}
+          </Card>
+        </div>
       </div>
     </>
   )
