@@ -4,3 +4,13 @@
   "full_name": "cuiweitie",
   "password": "Admin123456"
 }
+
+
+{
+  "query": "美国政府停摆",
+  "category": "政治",
+  "language": "zh",
+  "country": "cn",
+  "max_results": 100,
+  "crawler_type": "serpapi"
+}

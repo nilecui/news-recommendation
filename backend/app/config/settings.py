@@ -78,6 +78,15 @@ class Settings(BaseSettings):
     # File Upload
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
     UPLOAD_DIR: str = "uploads"
+    
+    # MinIO Configuration
+    MINIO_ENDPOINT: str = "192.168.12.225:9100"  # MinIO API endpoint
+    MINIO_ACCESS_KEY: str = "admin"  # MinIO access key
+    MINIO_SECRET_KEY: str = "admin@123"  # MinIO secret key
+    MINIO_BUCKET_NAME: str = "news-images"  # Bucket name for news images
+    MINIO_SECURE: bool = False  # Use HTTPS (False for local development)
+    MINIO_REGION: Optional[str] = None  # Region (optional)
+    MINIO_PUBLIC_URL: str = "http://192.168.12.225:9100"  # Public URL for accessing images
 
     # Pagination
     DEFAULT_PAGE_SIZE: int = 20
