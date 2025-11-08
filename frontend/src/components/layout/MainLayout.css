@@ -1,0 +1,350 @@
+/* MainLayout Styles - Inspired by Ant Design Pro */
+
+.main-layout {
+  min-height: 100vh;
+  background: var(--bg-tertiary);
+}
+
+/* ==================== Sidebar ==================== */
+
+.main-sider {
+  background: linear-gradient(180deg, #001529 0%, #002140 100%) !important;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+  position: relative;
+  z-index: 10;
+}
+
+.main-sider .ant-layout-sider-trigger {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Logo */
+.sider-logo {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sider-logo:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.logo-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.sider-logo .logo-text {
+  color: white !important;
+  margin: 0 !important;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-lg);
+  white-space: nowrap;
+}
+
+/* Sidebar Menu */
+.sidebar-menu {
+  background: transparent;
+  border-right: none;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sidebar-menu .ant-menu-item {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: var(--font-size-md);
+  height: 48px;
+  line-height: 48px;
+  margin: 4px 8px;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+}
+
+.sidebar-menu .ant-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: white;
+}
+
+.sidebar-menu .ant-menu-item-selected {
+  background: var(--primary-gradient) !important;
+  color: white !important;
+  font-weight: var(--font-weight-semibold);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.sidebar-menu .ant-menu-item-icon {
+  font-size: 18px;
+}
+
+/* Collapsed Menu */
+.ant-layout-sider-collapsed .sidebar-menu .ant-menu-item {
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Sidebar User Info */
+.sider-user {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: var(--spacing-lg);
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.sider-user .user-info {
+  flex: 1;
+  overflow: hidden;
+}
+
+.sider-user .user-name {
+  color: white;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sider-user .user-email {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==================== Mobile Drawer ==================== */
+
+.mobile-drawer .ant-drawer-body {
+  background: linear-gradient(180deg, #001529 0%, #002140 100%);
+}
+
+.drawer-logo {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.drawer-logo .logo-text {
+  color: white !important;
+  margin: 0 !important;
+  font-weight: var(--font-weight-bold);
+}
+
+/* ==================== Header ==================== */
+
+.main-header {
+  background: white !important;
+  padding: 0 var(--spacing-xl) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  position: sticky;
+  top: 0;
+  z-index: 9;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  flex: 1;
+  max-width: 800px;
+}
+
+.trigger-btn {
+  font-size: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+}
+
+.trigger-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--primary-color);
+}
+
+.header-search {
+  flex: 1;
+  max-width: 500px;
+}
+
+.header-search .ant-input-search {
+  border-radius: var(--radius-lg);
+}
+
+.header-search .ant-input-search .ant-input {
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  border: 2px solid var(--border-light);
+  font-size: var(--font-size-md);
+  padding: 8px 16px;
+  transition: all var(--transition-base);
+}
+
+.header-search .ant-input-search .ant-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.header-search .ant-input-search .ant-btn {
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  height: 42px;
+  padding: 0 20px;
+  background: var(--primary-gradient);
+  border: none;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-base);
+}
+
+.icon-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--primary-color);
+}
+
+.user-dropdown {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 4px 12px 4px 4px;
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.user-dropdown:hover {
+  background: var(--bg-secondary);
+}
+
+.user-name-text {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==================== Content ==================== */
+
+.main-content {
+  background: transparent !important;
+  min-height: calc(100vh - 64px);
+}
+
+.content-wrapper {
+  max-width: 1600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ==================== Responsive Design ==================== */
+
+@media (min-width: 769px) {
+  .hidden-desktop {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .hidden-mobile {
+    display: none !important;
+  }
+
+  .main-header {
+    padding: 0 var(--spacing-md) !important;
+  }
+
+  .header-left {
+    gap: var(--spacing-sm);
+  }
+
+  .header-search {
+    max-width: 100%;
+  }
+
+  .header-search .ant-input-search .ant-input {
+    font-size: var(--font-size-sm);
+    padding: 6px 12px;
+  }
+
+  .header-search .ant-input-search .ant-btn {
+    height: 38px;
+    padding: 0 12px;
+  }
+
+  .user-name-text {
+    display: none;
+  }
+
+  .main-content {
+    padding: var(--spacing-md) !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .header-search {
+    max-width: 200px;
+  }
+
+  .header-right .ant-space {
+    gap: var(--spacing-sm) !important;
+  }
+}
+
+/* ==================== Dark Theme Support ==================== */
+
+@media (prefers-color-scheme: dark) {
+  .main-header {
+    background: #141414 !important;
+    border-bottom: 1px solid #303030;
+  }
+
+  .header-search .ant-input-search .ant-input {
+    background: #1f1f1f;
+    border-color: #303030;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .user-dropdown:hover {
+    background: #1f1f1f;
+  }
+}

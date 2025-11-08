@@ -9,7 +9,8 @@ import {
   Typography,
   Input,
   Space,
-  Badge
+  Badge,
+  Drawer
 } from 'antd'
 import {
   HomeOutlined,
@@ -18,13 +19,17 @@ import {
   BellOutlined,
   LogoutOutlined,
   SettingOutlined,
-  BookOutlined,
-  TagsOutlined,
+  FireOutlined,
+  CompassOutlined,
+  StarOutlined,
+  HistoryOutlined,
+  HeartOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined
 } from '@ant-design/icons'
 
 import { useAuthStore } from '@/store/authStore'
+import './MainLayout.css'
 
 const { Header, Sider, Content } = Layout
 const { Title } = Typography
@@ -35,6 +40,7 @@ const MainLayout: React.FC = () => {
   const location = useLocation()
   const { user, logout } = useAuthStore()
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileDrawerVisible, setMobileDrawerVisible] = useState(false)
 
   const handleLogout = async () => {
     try {
@@ -49,8 +55,20 @@ const MainLayout: React.FC = () => {
     {
       key: 'profile',
       icon: <UserOutlined />,
-      label: '个人资料',
+      label: '个人中心',
       onClick: () => navigate('/profile')
+    },
+    {
+      key: 'history',
+      icon: <HistoryOutlined />,
+      label: '浏览历史',
+      onClick: () => navigate('/profile/history')
+    },
+    {
+      key: 'collections',
+      icon: <HeartOutlined />,
+      label: '我的收藏',
+      onClick: () => navigate('/profile/collections')
     },
     {
       key: 'settings',
@@ -65,7 +83,8 @@ const MainLayout: React.FC = () => {
       key: 'logout',
       icon: <LogoutOutlined />,
       label: '退出登录',
-      onClick: handleLogout
+      onClick: handleLogout,
+      danger: true
     }
   ]
 
@@ -73,35 +92,26 @@ const MainLayout: React.FC = () => {
     {
       key: '/',
       icon: <HomeOutlined />,
-      label: '首页推荐'
+      label: '推荐',
+      title: '推荐'
     },
     {
       key: '/trending',
-      icon: <TagsOutlined />,
-      label: '热门新闻'
+      icon: <FireOutlined />,
+      label: '热门',
+      title: '热门'
     },
     {
-      key: '/categories',
-      icon: <BookOutlined />,
-      label: '新闻分类',
-      children: [
-        {
-          key: '/category/technology',
-          label: '科技'
-        },
-        {
-          key: '/category/business',
-          label: '商业'
-        },
-        {
-          key: '/category/sports',
-          label: '体育'
-        },
-        {
-          key: '/category/entertainment',
-          label: '娱乐'
-        }
-      ]
+      key: '/discover',
+      icon: <CompassOutlined />,
+      label: '发现',
+      title: '发现'
+    },
+    {
+      key: '/favorites',
+      icon: <StarOutlined />,
+      label: '收藏',
+      title: '收藏'
     }
   ]
 
@@ -111,80 +121,146 @@ const MainLayout: React.FC = () => {
     }
   }
 
+  // Sidebar Menu Component
+  const SidebarMenu = () => (
+    <Menu
+      mode="inline"
+      selectedKeys={[location.pathname]}
+      items={menuItems}
+      onClick={({ key }) => {
+        navigate(key)
+        setMobileDrawerVisible(false)
+      }}
+      className="sidebar-menu"
+    />
+  )
+
   return (
-    <Layout className="min-h-screen">
+    <Layout className="main-layout">
+      {/* Desktop Sidebar */}
       <Sider
         trigger={null}
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
-        className="bg-white shadow-md"
-        width={200}
+        className="main-sider"
+        width={220}
+        collapsedWidth={80}
+        breakpoint="lg"
+        onBreakpoint={(broken) => {
+          if (broken) {
+            setCollapsed(true)
+          }
+        }}
       >
-        <div className="p-4">
-          <Title level={4} className="!mb-0 text-center">
-            {collapsed ? '新闻' : '新闻推荐'}
-          </Title>
+        {/* Logo */}
+        <div className="sider-logo" onClick={() => navigate('/')}>
+          <div className="logo-icon gradient-bg">
+            <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+              <path d="M20 5L25 15H35L27 22L30 32L20 26L10 32L13 22L5 15H15L20 5Z" fill="white"/>
+            </svg>
+          </div>
+          {!collapsed && (
+            <Title level={5} className="logo-text">
+              新闻推荐
+            </Title>
+          )}
         </div>
 
-        <Menu
-          mode="inline"
-          selectedKeys={[location.pathname]}
-          items={menuItems}
-          onClick={({ key }) => navigate(key)}
-          className="border-r-0"
-        />
+        <SidebarMenu />
+
+        {/* User Info in Sidebar */}
+        {!collapsed && (
+          <div className="sider-user">
+            <Avatar src={user?.avatar_url} icon={<UserOutlined />} size={40} />
+            <div className="user-info">
+              <div className="user-name">{user?.full_name || user?.username || '用户'}</div>
+              <div className="user-email">{user?.email}</div>
+            </div>
+          </div>
+        )}
       </Sider>
 
-      <Layout>
-        <Header className="bg-white shadow-sm px-6 flex items-center justify-between">
-          <div className="flex items-center flex-1">
+      {/* Mobile Drawer */}
+      <Drawer
+        placement="left"
+        onClose={() => setMobileDrawerVisible(false)}
+        open={mobileDrawerVisible}
+        className="mobile-drawer"
+        width={280}
+        styles={{ body: { padding: 0 } }}
+      >
+        <div className="drawer-logo">
+          <div className="logo-icon gradient-bg">
+            <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+              <path d="M20 5L25 15H35L27 22L30 32L20 26L10 32L13 22L5 15H15L20 5Z" fill="white"/>
+            </svg>
+          </div>
+          <Title level={5} className="logo-text">新闻推荐</Title>
+        </div>
+        <SidebarMenu />
+      </Drawer>
+
+      <Layout className="main-content-layout">
+        {/* Header */}
+        <Header className="main-header">
+          <div className="header-left">
             <Button
               type="text"
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() => setCollapsed(!collapsed)}
-              className="mr-4"
+              className="trigger-btn hidden-mobile"
+            />
+            <Button
+              type="text"
+              icon={<MenuUnfoldOutlined />}
+              onClick={() => setMobileDrawerVisible(true)}
+              className="trigger-btn hidden-desktop"
             />
 
-            <div className="max-w-md flex-1">
+            <div className="header-search">
               <Search
-                placeholder="搜索新闻..."
+                placeholder="搜索感兴趣的新闻..."
                 allowClear
                 enterButton={<SearchOutlined />}
-                size="middle"
+                size="large"
                 onSearch={handleSearch}
-                className="w-full"
               />
             </div>
           </div>
 
-          <Space size="middle">
-            <Badge count={0} showZero={false}>
-              <Button type="text" icon={<BellOutlined />} size="large" />
+          <Space size="large" className="header-right">
+            <Badge count={0} showZero={false} dot>
+              <Button
+                type="text"
+                icon={<BellOutlined style={{ fontSize: 20 }} />}
+                className="icon-btn"
+              />
             </Badge>
 
             <Dropdown
               menu={{ items: userMenuItems }}
               placement="bottomRight"
               trigger={['click']}
+              arrow
             >
-              <div className="flex items-center cursor-pointer hover:bg-gray-50 rounded-lg px-3 py-2">
+              <div className="user-dropdown">
                 <Avatar
-                  size="small"
                   src={user?.avatar_url}
                   icon={<UserOutlined />}
-                  className="mr-2"
+                  size={36}
                 />
-                <span className="hidden sm:inline">
-                  {user?.full_name || user?.username}
+                <span className="user-name-text">
+                  {user?.full_name || user?.username || '用户'}
                 </span>
               </div>
             </Dropdown>
           </Space>
         </Header>
 
-        <Content className="bg-gray-50">
-          <div className="p-6">
+        {/* Content */}
+        <Content className="main-content">
+          <div className="content-wrapper">
             <Outlet />
           </div>
         </Content>
