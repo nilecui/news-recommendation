@@ -3,7 +3,7 @@
  */
 
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
-import { tokenStorage } from '../utils/tokenStorage';
+import { getAccessToken, getRefreshToken, storeTokens, clearStoredTokens } from '../utils/tokenStorage';
 import { handleApiError } from '../utils/errorHandling';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -20,7 +20,7 @@ const apiClient: AxiosInstance = axios.create({
 // Request interceptor
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = tokenStorage.getAccessToken();
+    const token = getAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -45,15 +45,18 @@ apiClient.interceptors.response.use(
 
       try {
         // Try to refresh token
-        const refreshToken = tokenStorage.getRefreshToken();
+        const refreshToken = getRefreshToken();
         if (refreshToken) {
           const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
             refresh_token: refreshToken,
           });
 
           const { access_token, refresh_token: newRefreshToken } = response.data;
-          tokenStorage.setAccessToken(access_token);
-          tokenStorage.setRefreshToken(newRefreshToken);
+          // Store new tokens
+          storeTokens({
+            access_token,
+            refresh_token: newRefreshToken
+          });
 
           // Retry original request with new token
           if (originalRequest.headers) {
@@ -63,7 +66,7 @@ apiClient.interceptors.response.use(
         }
       } catch (refreshError) {
         // Refresh failed, redirect to login
-        tokenStorage.clearTokens();
+        clearStoredTokens();
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }
