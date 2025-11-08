@@ -3,7 +3,7 @@ import axios, { AxiosInstance, AxiosResponse } from 'axios'
 import { User, AuthTokens, LoginCredentials, RegisterData } from '@/types'
 import { getStoredTokens, storeTokens, clearStoredTokens } from '@/utils/tokenStorage'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
 
 class AuthService {
   private api: AxiosInstance

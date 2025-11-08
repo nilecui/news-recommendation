@@ -134,9 +134,12 @@ async def get_similar_news(
 
 @router.get("/popular")
 async def get_popular_news(
-    timeframe: str = Query("day", pattern="^(hour|day|week)$"),
+    timeframe: str = Query("24h", pattern="^(1h|6h|24h|7d|30d|hour|day|week)$"),
     category: Optional[str] = None,
-    limit: int = Query(20, ge=1, le=50),
+    category_id: Optional[int] = Query(None, description="Category ID"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
+    limit: Optional[int] = Query(None, ge=1, le=50, description="Deprecated: use page_size instead"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Any:
@@ -146,26 +149,44 @@ async def get_popular_news(
     from app.services.news.news_service import NewsService
     news_service = NewsService(db)
     
-    # Convert timeframe
-    time_range_map = {"hour": "1h", "day": "24h", "week": "7d"}
+    # Use page_size if provided, otherwise use limit (for backward compatibility)
+    actual_limit = page_size if limit is None else limit
+    
+    # Convert timeframe to time_range format
+    # Support both old format (hour/day/week) and new format (1h/6h/24h/7d/30d)
+    time_range_map = {
+        "hour": "1h",
+        "day": "24h",
+        "week": "7d",
+        "1h": "1h",
+        "6h": "6h",
+        "24h": "24h",
+        "7d": "7d",
+        "30d": "30d"
+    }
     time_range = time_range_map.get(timeframe, "24h")
     
     # Get category_id if category name provided
-    category_id = None
-    if category:
+    if not category_id and category:
         from app.models.news import NewsCategory
         cat = db.query(NewsCategory).filter(NewsCategory.name == category).first()
         if cat:
             category_id = cat.id
     
+    # Get enough news for pagination
     popular_news = await news_service.get_trending_news(
         category_id=category_id,
         time_range=time_range,
-        limit=limit
+        limit=actual_limit * page  # Get enough for pagination
     )
     
+    # Apply pagination
+    start = (page - 1) * actual_limit
+    end = start + actual_limit
+    paginated_news = popular_news[start:end]
+    
     results = []
-    for news in popular_news:
+    for news in paginated_news:
         results.append({
             "news_id": news.id,
             "title": news.title,
@@ -180,8 +201,11 @@ async def get_popular_news(
     
     return {
         "items": results,
-        "total": len(results),
-        "timeframe": timeframe
+        "total": len(popular_news),
+        "page": page,
+        "page_size": actual_limit,
+        "timeframe": timeframe,
+        "has_next": end < len(popular_news)
     }
 
 

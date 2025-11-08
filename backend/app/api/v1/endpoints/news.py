@@ -146,6 +146,34 @@ async def get_news_by_category(
     }
 
 
+@router.get("/featured")
+async def get_featured_news(
+    limit: int = Query(10, ge=1, le=50),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Get featured news
+    """
+    news_service = NewsService(db)
+    featured_news = await news_service.get_featured_news(limit=limit)
+    return featured_news
+
+
+@router.get("/breaking")
+async def get_breaking_news(
+    limit: int = Query(5, ge=1, le=20),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Get breaking news
+    """
+    news_service = NewsService(db)
+    breaking_news = await news_service.get_breaking_news(limit=limit)
+    return breaking_news
+
+
 @router.get("/{news_id}", response_model=NewsResponse)
 async def get_news_detail(
     news_id: int,

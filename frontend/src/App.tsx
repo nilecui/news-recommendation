@@ -14,6 +14,12 @@ import NewsDetailPage from '@/pages/news/NewsDetailPage'
 import ProfilePage from '@/pages/profile/ProfilePage'
 import SearchPage from '@/pages/news/SearchPage'
 import CategoryPage from '@/pages/news/CategoryPage'
+import TrendingPage from '@/pages/trending/TrendingPage'
+import DiscoverPage from '@/pages/discover/DiscoverPage'
+import FavoritesPage from '@/pages/favorites/FavoritesPage'
+import HistoryPage from '@/pages/profile/HistoryPage'
+import CollectionsPage from '@/pages/profile/CollectionsPage'
+import SettingsPage from '@/pages/profile/SettingsPage'
 
 // Components
 import ProtectedRoute from '@/components/common/ProtectedRoute'
@@ -67,7 +73,14 @@ const App: React.FC = () => {
             <Route path="news/:id" element={<NewsDetailPage />} />
             <Route path="category/:category" element={<CategoryPage />} />
             <Route path="search" element={<SearchPage />} />
-            <Route path="profile/*" element={<ProfilePage />} />
+            <Route path="trending" element={<TrendingPage />} />
+            <Route path="discover" element={<DiscoverPage />} />
+            <Route path="favorites" element={<FavoritesPage />} />
+            <Route path="profile/*" element={<ProfilePage />}>
+              <Route path="history" element={<HistoryPage />} />
+              <Route path="collections" element={<CollectionsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
           </Route>
 
           {/* Fallback route */}
