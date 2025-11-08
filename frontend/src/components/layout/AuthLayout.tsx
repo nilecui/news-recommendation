@@ -1,11 +1,19 @@
 import React from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { Layout, Typography } from 'antd'
 
 const { Content } = Layout
 const { Title, Text } = Typography
 
 const AuthLayout: React.FC = () => {
+  const location = useLocation()
+  const isLoginPage = location.pathname === '/auth/login'
+  
+  // For login page, render without layout wrapper to allow full-page styling
+  if (isLoginPage) {
+    return <Outlet />
+  }
+
   return (
     <Layout className="min-h-screen bg-gray-50">
       <Content className="flex flex-col">
