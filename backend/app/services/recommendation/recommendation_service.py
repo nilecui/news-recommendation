@@ -2,7 +2,7 @@
 Recommendation service implementation
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func
@@ -71,6 +71,9 @@ class RecommendationService:
         else:
             # Warm start: use multi-strategy recall
             candidates = await self._multi_strategy_recall(user_id, user_profile, request)
+
+        # Deduplicate candidates by news ID (keep first occurrence with highest priority strategy)
+        candidates = self._deduplicate_candidates(candidates)
 
         # Rank candidates
         ranked_candidates = await self._rank_candidates(user_id, candidates, request)
@@ -164,7 +167,7 @@ class RecommendationService:
             return self.db.query(News).filter(News.id.in_(news_ids)).all()
 
         # Calculate from database
-        time_threshold = datetime.utcnow() - timedelta(days=1)
+        time_threshold = datetime.now(timezone.utc) - timedelta(days=1)
         query = self.db.query(News).filter(
             and_(
                 News.is_published == True,
@@ -240,7 +243,7 @@ class RecommendationService:
         Find news liked by users with similar behavior
         """
         # Get user's recent positive behaviors (last 30 days)
-        time_threshold = datetime.utcnow() - timedelta(days=30)
+        time_threshold = datetime.now(timezone.utc) - timedelta(days=30)
 
         user_behaviors = self.db.query(UserBehavior).filter(
             and_(
@@ -354,7 +357,13 @@ class RecommendationService:
         base_score += news.quality_score * 0.2
 
         # Time decay (fresher is better)
-        hours_old = (datetime.utcnow() - news.published_at).total_seconds() / 3600
+        # Ensure both datetimes are timezone-aware
+        now = datetime.now(timezone.utc)
+        published_at = news.published_at
+        if published_at.tzinfo is None:
+            # If published_at is naive, assume it's UTC
+            published_at = published_at.replace(tzinfo=timezone.utc)
+        hours_old = (now - published_at).total_seconds() / 3600
         freshness_score = max(0, 1 - (hours_old / 72))  # Decay over 3 days
         base_score += freshness_score * 0.2
 
@@ -402,6 +411,21 @@ class RecommendationService:
             category_counts[news.category_id] = category_counts.get(news.category_id, 0) + 1
 
         return reranked
+
+    def _deduplicate_candidates(self, candidates: List[Tuple[News, str]]) -> List[Tuple[News, str]]:
+        """
+        Deduplicate candidates by news ID
+        Keep the first occurrence (which typically has higher priority strategy)
+        """
+        seen_news_ids = set()
+        deduplicated = []
+        
+        for news, strategy in candidates:
+            if news.id not in seen_news_ids:
+                seen_news_ids.add(news.id)
+                deduplicated.append((news, strategy))
+        
+        return deduplicated
 
     # ========== Utility Methods ==========
 

@@ -56,8 +56,24 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
-    # External APIs
-    NEWS_API_KEY: Optional[str] = None
+    # External APIs - News Data Sources
+    SERPAPI_API_KEY: Optional[str] = None  # SerpAPI for Google News search
+    NEWS_API_KEY: Optional[str] = None  # NewsAPI.org
+    GNEWS_API_KEY: Optional[str] = None  # GNews.io
+    NEWSDATA_API_KEY: Optional[str] = None  # NewsData.io
+    
+    # Crawler Settings
+    CRAWLER_ENABLED: bool = True
+    CRAWLER_INTERVAL_MINUTES: int = 30  # Default crawl interval
+    CRAWLER_MAX_ARTICLES_PER_RUN: int = 100  # Max articles per crawl
+    CRAWLER_DEFAULT_LANGUAGE: str = "zh"  # Default language for news
+    CRAWLER_DEFAULT_COUNTRY: str = "cn"  # Default country for news
+    CRAWLER_USER_AGENT: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    
+    # News Processing Settings
+    NEWS_DEDUPLICATION_ENABLED: bool = True
+    NEWS_MIN_CONTENT_LENGTH: int = 100  # Minimum content length in characters
+    NEWS_AUTO_CATEGORIZE: bool = True  # Auto categorize news based on keywords
 
     # File Upload
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB

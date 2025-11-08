@@ -236,6 +236,7 @@ class NewsService:
             return self.db.query(News).filter(News.id.in_(news_ids)).all()
 
         # Calculate time threshold
+        from datetime import timezone
         time_thresholds = {
             "1h": timedelta(hours=1),
             "6h": timedelta(hours=6),
@@ -243,7 +244,7 @@ class NewsService:
             "7d": timedelta(days=7),
             "30d": timedelta(days=30)
         }
-        threshold = datetime.utcnow() - time_thresholds.get(time_range, timedelta(days=1))
+        threshold = datetime.now(timezone.utc) - time_thresholds.get(time_range, timedelta(days=1))
 
         query = self.db.query(News).filter(
             and_(

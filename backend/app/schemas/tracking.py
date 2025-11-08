@@ -4,7 +4,7 @@ Tracking and behavior schemas for request/response validation
 
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class BehaviorBase(BaseModel):
@@ -56,11 +56,14 @@ class BehaviorBatchRequest(BaseModel):
     recommendation_id: Optional[str] = Field(None, max_length=100)
     algorithm_version: Optional[str] = Field(None, max_length=20)
 
-    @validator('behaviors')
+    @field_validator('behaviors')
+    @classmethod
     def validate_behaviors(cls, v):
         if len(v) > 100:
             raise ValueError('Maximum 100 behaviors per batch')
         return v
+    
+    model_config = ConfigDict(extra='forbid')
 
 
 class BehaviorResponse(BaseModel):

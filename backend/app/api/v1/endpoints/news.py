@@ -88,7 +88,27 @@ async def get_trending_news(
         time_range=time_range,
         limit=limit
     )
-    return trending_news
+    
+    # Convert News objects to dict format
+    results = []
+    for news in trending_news:
+        results.append({
+            "news_id": news.id,
+            "title": news.title,
+            "title_zh": news.title_zh,
+            "summary": news.summary,
+            "image_url": news.image_url,
+            "source": news.source,
+            "category_id": news.category_id,
+            "trending_score": news.trending_score,
+            "published_at": news.published_at.isoformat() if news.published_at else None
+        })
+    
+    return {
+        "items": results,
+        "total": len(results),
+        "timeframe": timeframe
+    }
 
 
 @router.post("/search")

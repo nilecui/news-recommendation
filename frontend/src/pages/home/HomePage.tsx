@@ -49,7 +49,7 @@ const HomePage: React.FC = () => {
       // Load featured news for hero section (only on first load)
       if (featuredNews.length === 0) {
         try {
-          const trending = await newsService.getTrendingNews({ timeRange: '24h', limit: 3 })
+          const trending = await newsService.getTrendingNews({ timeframe: 'day', limit: 3 })
           setFeaturedNews(trending)
         } catch (err) {
           console.error('Failed to load featured news:', err)

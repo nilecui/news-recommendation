@@ -18,7 +18,8 @@ router = APIRouter()
 @router.get("/", response_model=RecommendationResponse)
 async def get_personalized_recommendations(
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=50),
+    page_size: int = Query(20, ge=1, le=50),
+    limit: Optional[int] = Query(None, ge=1, le=50, description="Deprecated: use page_size instead"),
     refresh: bool = Query(False, description="Force refresh recommendations"),
     category_id: Optional[int] = Query(None, description="Filter by category"),
     current_user: User = Depends(get_current_user),
@@ -29,10 +30,13 @@ async def get_personalized_recommendations(
     """
     recommendation_service = RecommendationService(db)
     
+    # Use page_size if provided, otherwise use limit (for backward compatibility)
+    actual_page_size = page_size if limit is None else limit
+    
     # Create RecommendationRequest
     request = RecommendationRequest(
         page=page,
-        page_size=limit,
+        page_size=actual_page_size,
         category_id=category_id
     )
     
@@ -47,11 +51,11 @@ async def get_personalized_recommendations(
         "items": recommendations,
         "total": len(recommendations),
         "page": page,
-        "page_size": limit,
+        "page_size": actual_page_size,
         "recommendation_id": recommendation_id,
         "algorithm_version": recommendation_service.algorithm_version,
         "timestamp": datetime.utcnow(),
-        "has_next": len(recommendations) == limit,
+        "has_next": len(recommendations) == actual_page_size,
         "metadata": None
     }
 

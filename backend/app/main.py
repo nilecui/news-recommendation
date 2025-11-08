@@ -5,6 +5,7 @@ FastAPI Application Main Entry Point
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 import time
 import structlog
 
@@ -94,6 +95,41 @@ async def root():
         "version": "1.0.0",
         "docs": f"{settings.API_V1_STR}/docs"
     }
+
+
+# Request validation error handler
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle request validation errors with detailed error messages"""
+    # Try to get request body for logging
+    body = None
+    try:
+        if request.method == "POST" or request.method == "PUT" or request.method == "PATCH":
+            body_bytes = await request.body()
+            if body_bytes:
+                import json
+                try:
+                    body = json.loads(body_bytes)
+                except:
+                    body = body_bytes.decode('utf-8', errors='ignore')
+    except:
+        pass
+    
+    logger.warning(
+        "validation_error",
+        errors=exc.errors(),
+        method=request.method,
+        url=str(request.url),
+        body=body
+    )
+    return JSONResponse(
+        status_code=422,
+        content={
+            "code": 422,
+            "message": "Validation error",
+            "detail": exc.errors() if settings.DEBUG else "Request validation failed"
+        }
+    )
 
 
 # Global exception handler

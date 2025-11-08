@@ -23,6 +23,21 @@ async def track_behaviors(
 ) -> Any:
     """
     Track user behaviors in batch
+    
+    Request body should be:
+    {
+        "behaviors": [
+            {
+                "news_id": 1,
+                "behavior_type": "impression",
+                "page": 1,
+                "position": 0
+            }
+        ],
+        "session_id": "optional-session-id",
+        "device_type": "desktop",
+        "platform": "web"
+    }
     """
     tracking_service = TrackingService(db)
     result = await tracking_service.track_behaviors_batch(

@@ -88,6 +88,24 @@ async def get_current_superuser(
     return current_user
 
 
+async def get_current_admin_or_verified(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """
+    Get current user who is either superuser or verified
+    Allows superusers even if email is not verified
+    """
+    if current_user.is_superuser:
+        return current_user
+    
+    if not current_user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email not verified"
+        )
+    return current_user
+
+
 async def get_optional_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
