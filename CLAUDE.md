@@ -1,589 +1,1126 @@
-# 新闻推荐系统 - 技术实现方案
-
-## 项目概述
-构建一个智能新闻推荐系统，为用户提供个性化的新闻内容推荐服务。系统采用前后端分离架构，后端使用 Python 提供 API 服务，前端使用 React 构建用户界面。
-
-
-
-## 系统架构设计
-
-### 整体架构
-
-
-用户浏览器 (React)
-↓ HTTPS/REST API
-后端服务层 (FastAPI/Flask)
-↓
-业务逻辑层 (推荐引擎 + 数据处理)
-↓
-数据存储层 (PostgreSQL + Redis + Elasticsearch)
-↓
-数据源层 (新闻爬虫 + API对接)
-
-
-
-### 技术栈选型逻辑
-
-#### 后端技术栈
-- **Web框架**: FastAPI
-  - 选型理由: 高性能异步支持，自动生成API文档，类型检查，适合构建RESTful API
-  - 备选方案: Flask (更轻量但需手动配置异步)
-
-- **推荐引擎核心**:
-  - Scikit-learn: 传统机器学习算法实现
-  - LightGBM/XGBoost: 特征工程后的排序模型
-  - Sentence-Transformers: 新闻内容向量化
-  - 选型理由: 成熟稳定，适合中等规模数据，可快速迭代
-
-- **数据存储**:
-  - PostgreSQL: 用户数据、新闻元数据、行为日志
-    - 选型理由: ACID特性，复杂查询支持，JSON字段支持
-  - Redis: 热点数据缓存、用户session、推荐结果缓存
-    - 选型理由: 高性能，支持多种数据结构，TTL机制
-  - Elasticsearch: 新闻全文搜索、相似内容检索
-    - 选型理由: 强大的全文检索，支持向量检索(dense_vector)
-
-- **任务队列**: Celery + Redis
-  - 选型理由: 处理离线推荐计算、数据爬取等异步任务
-
-- **数据处理**: Pandas + NumPy
-  - 选型理由: 数据清洗、特征工程的标准工具
-
-#### 前端技术栈
-- **核心框架**: React 18+
-  - 选型理由: 组件化开发，虚拟DOM性能优，生态丰富
-
-- **状态管理**: Zustand 或 Redux Toolkit
-  - 选型理由: Zustand更轻量简洁，Redux Toolkit适合复杂状态管理
-
-- **路由**: React Router v6
-  - 选型理由: React官方推荐，支持动态路由和懒加载
-
-- **UI组件库**: Ant Design 或 Material-UI
-  - 选型理由: 组件丰富，开箱即用，国际化支持
-
-- **HTTP客户端**: Axios
-  - 选型理由: 拦截器支持，请求/响应转换，错误处理完善
-
-- **构建工具**: Vite
-  - 选型理由: 快速冷启动，HMR性能优异，现代化构建
-
-
-
-## 核心功能模块设计
-
-### 1. 数据采集模块
-
-#### 任务目标
-从多个新闻源采集、清洗、存储新闻数据
-
-#### 实现逻辑
-1. **爬虫系统**
-   - 使用 Scrapy 框架构建分布式爬虫
-   - 定义 Spider 类针对不同新闻源（RSS、API、网页）
-   - 实现反爬策略：User-Agent轮换、代理池、请求频率控制
-   - 数据去重：基于URL和内容hash
-
-2. **数据清洗流程**
-   - HTML标签清理 (BeautifulSoup4)
-   - 文本规范化：去除特殊字符、统一编码
-   - 提取核心字段：标题、正文、发布时间、来源、分类、标签
-   - 数据验证：必填字段检查、时间格式验证
-
-3. **存储策略**
-   - 原始数据 → PostgreSQL (news表)
-   - 全文索引 → Elasticsearch
-   - 新闻向量 → 预计算后存入向量数据库或PostgreSQL
-
-#### 数据Schema设计
-
-
-news表:
-
-* id (主键)
-* title (标题)
-* content (正文)
-* summary (摘要)
-* source (来源)
-* category (分类)
-* tags (标签数组)
-* publish_time (发布时间)
-* author (作者)
-* url (原文链接)
-* image_url (封面图)
-* created_at (采集时间)
-* embedding_vector (内容向量，可选)
-
-
-
-
-
-### 2. 用户管理模块
-
-#### 任务目标
-用户注册、登录、个人信息管理、偏好设置
-
-#### 实现逻辑
-1. **认证系统**
-   - JWT Token机制：access_token (15分钟) + refresh_token (7天)
-   - 密码加密：bcrypt哈希算法
-   - 第三方登录：OAuth2.0 (Google/Facebook 可选)
-
-2. **用户画像构建**
-   - 显式画像：用户主动设置的兴趣标签、偏好分类
-   - 隐式画像：基于行为数据挖掘
-     - 阅读历史分析 → 偏好分类权重
-     - 点击率分析 → 标题偏好特征
-     - 停留时长 → 内容深度偏好
-     - 互动行为 → 点赞/收藏/分享的内容特征
-
-3. **数据存储**
-   - users表：基本信息、认证信息
-   - user_profiles表：画像数据(JSON格式存储特征向量)
-   - user_preferences表：显式偏好设置
-
-#### 前端实现要点
-- 登录注册页面：表单验证、错误提示
-- 个人中心：资料编辑、兴趣标签选择（标签云组件）
-- Token管理：axios拦截器自动刷新token
-- 路由守卫：未登录重定向到登录页
-
-
-
-### 3. 行为追踪模块
-
-#### 任务目标
-记录用户行为数据，为推荐算法提供训练样本
-
-#### 实现逻辑
-1. **行为类型定义**
-   - 曝光 (impression): 新闻出现在用户屏幕
-   - 点击 (click): 用户点击查看详情
-   - 阅读 (read): 停留时长 > 5秒
-   - 互动 (interaction): 点赞、收藏、分享、评论
-
-2. **数据采集方案**
-   - 前端埋点：React组件中使用自定义Hook
-   - 批量上报：本地缓存，每30秒或50条批量发送
-   - 异步处理：后端接收后写入消息队列
-   - 数据持久化：Celery消费者写入PostgreSQL
-
-3. **数据Schema**
-
-
-user_behaviors表:
-
-* id
-* user_id
-* news_id
-* behavior_type (枚举: impression/click/read/like/collect/share)
-* timestamp
-* context_info (JSON: 推荐位置、设备信息、会话ID)
-* duration (阅读时长，秒)
-
-
-
-4. **实时特征更新**
-   - 用户最近兴趣：Redis缓存最近100次行为
-   - 新闻热度：Redis计数器实时更新点击数
-
-#### 前端实现要点
-- 自定义Hook: useTracker(eventType, newsId)
-- 曝光埋点：Intersection Observer API检测可见性
-- 防抖处理：避免频繁触发
-
-
-
-### 4. 推荐引擎模块
-
-#### 任务目标
-生成个性化新闻推荐列表
-
-#### 推荐策略设计
-
-##### 4.1 召回层 (Recall)
-目标：从海量新闻中快速筛选出候选集 (1000-5000条)
-
-**多路召回策略**:
-
-1. **协同过滤召回**
-   - User-Based CF: 找相似用户喜欢的新闻
-   - Item-Based CF: 找与用户历史阅读相似的新闻
-   - 实现：使用Surprise库或自实现矩阵分解(ALS)
-   
-2. **内容召回**
-   - 基于用户画像：匹配分类权重、标签偏好
-   - 基于向量检索：用户兴趣向量 vs 新闻embedding
-   - 实现：Sentence-Transformers生成向量，Elasticsearch/FAISS检索
-
-3. **热门召回**
-   - 全局热点：24小时点击TOP100
-   - 分类热点：各分类TOP50
-   - 实现：Redis sorted set维护实时排行榜
-
-4. **新鲜度召回**
-   - 最新发布的新闻 (避免信息茧房)
-   - 实现：按发布时间倒序查询
-
-**召回路数权重分配**:
-- 新用户(冷启动): 热门60% + 新鲜30% + 随机探索10%
-- 活跃用户: 协同过滤40% + 内容30% + 热门20% + 新鲜10%
-
-##### 4.2 排序层 (Ranking)
-目标：对召回结果精排，生成最终推荐列表 (20-50条)
-
-**排序模型**:
-- **特征工程**:
-  - 用户特征: 年龄、性别、活跃度、历史偏好向量
-  - 新闻特征: 分类、标签、发布时长、热度、质量分
-  - 交互特征: 相似度得分、历史CTR、预估阅读时长
-  - 上下文特征: 时段、设备、场景
-
-- **模型选择**:
-  - LightGBM二分类模型：预测CTR (点击率)
-  - 训练样本：正样本(点击/阅读)，负样本(曝光未点击)
-  - 目标函数：logloss或AUC优化
-
-- **重排策略**:
-  - 多样性：避免同类新闻扎堆 (MMR算法)
-  - 时效性衰减：发布时间加权
-  - 去重：同源新闻只保留一条
-
-##### 4.3 实现流程
-
-
-用户请求
-→ 获取用户画像(Redis缓存)
-→ 多路召回并集(1000条)
-→ 特征提取与拼接
-→ LightGBM模型预测CTR
-→ 重排序(多样性+时效性)
-→ 返回Top20
-→ 缓存结果(Redis, 5分钟)
-
-`
-
-#### 冷启动解决方案
-1. **新用户**:
-   - 引导页：让用户选择感兴趣的类别/标签
-   - 默认推荐：热门内容 + 编辑精选
-   - 快速学习：前10次点击加大权重更新
-
-2. **新新闻**:
-   - 探索流量：给新文章分配固定曝光量(如100次)
-   - AB测试：小流量测试CTR后决定是否推广
-
-
-
-### 5. API接口设计
-
-#### RESTful API端点
-
-**用户相关**
-- POST `/api/auth/register` - 用户注册
-- POST `/api/auth/login` - 用户登录
-- POST `/api/auth/refresh` - 刷新token
-- GET `/api/user/profile` - 获取用户信息
-- PUT `/api/user/profile` - 更新用户信息
-- POST `/api/user/preferences` - 设置偏好
-
-**新闻相关**
-- GET `/api/news/recommend` - 获取推荐列表 (分页)
-- GET `/api/news/{id}` - 获取新闻详情
-- GET `/api/news/search` - 搜索新闻 (关键词)
-- GET `/api/news/category/{category}` - 按分类浏览
-- GET `/api/news/trending` - 热门新闻
-
-**行为追踪**
-- POST `/api/track/behaviors` - 批量上报行为数据
-
-**互动相关**
-- POST `/api/news/{id}/like` - 点赞
-- POST `/api/news/{id}/collect` - 收藏
-- GET `/api/user/history` - 阅读历史
-- GET `/api/user/collections` - 我的收藏
-
-#### 接口规范
-- 统一响应格式:
-json
+# News Recommendation System - AI Assistant Guide
+
+## Project Overview
+
+An intelligent news recommendation system with personalized content delivery. The system uses a microservices architecture with FastAPI backend, React frontend, and integrated data processing pipelines.
+
+**Repository**: https://github.com/nilecui/news-recommendation
+**Current Version**: V1.0 (MVP + Core Features Implemented)
+**Last Updated**: 2025-11-14
+
+---
+
+## 🎯 Quick Reference for AI Assistants
+
+### Project Status: What's Implemented
+
+✅ **Backend (FastAPI)**
+- User authentication with JWT (access + refresh tokens)
+- News models with categories, tags, and metadata
+- Multi-strategy recommendation engine (content-based, collaborative filtering, hot/fresh)
+- Behavior tracking API (impression, click, read, like, bookmark, share)
+- User profile and preference management
+- RESTful API with comprehensive endpoints
+- PostgreSQL + Redis + Elasticsearch integration configured
+- Structured logging and error handling
+
+✅ **Frontend (React + Vite)**
+- Authentication pages (login/register)
+- Home page with infinite scroll news feed
+- News detail pages with interactions
+- User profile and settings
+- Reading history and collections
+- Category browsing and search
+- Modern UI with Ant Design
+- Behavior tracking hooks (useTracker, useVisibilityTracker)
+- Token management with auto-refresh
+
+✅ **Infrastructure**
+- Docker Compose setup for all services
+- Database migrations with Alembic
+- Development and production Dockerfiles
+- Start/stop scripts for development
+
+⚠️ **Partially Implemented / Planned**
+- Celery task queue (configured but tasks not implemented)
+- News crawlers (SerpAPI integration mentioned in git logs but files missing)
+- Elasticsearch full-text search (configured but not utilized)
+- MinIO image storage (in requirements but not implemented)
+- LightGBM ranking model (basic scoring implemented, ML model planned)
+- Sentence-Transformers embeddings (planned, not active)
+
+---
+
+## 📁 Actual Project Structure
+
+```
+news-recommendation/
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   │   └── v1/
+│   │   │       ├── api.py              # Main API router
+│   │   │       └── endpoints/
+│   │   │           ├── auth.py         # Authentication endpoints
+│   │   │           ├── users.py        # User management
+│   │   │           ├── news.py         # News CRUD and interactions
+│   │   │           ├── recommendations.py  # Recommendation engine
+│   │   │           └── tracking.py     # Behavior tracking
+│   │   ├── config/
+│   │   │   ├── settings.py            # App configuration
+│   │   │   └── database.py            # Database setup
+│   │   ├── models/
+│   │   │   ├── user.py                # User model
+│   │   │   ├── profile.py             # UserProfile model
+│   │   │   ├── news.py                # News + NewsCategory models
+│   │   │   └── behavior.py            # UserBehavior model
+│   │   ├── schemas/
+│   │   │   ├── auth.py                # Auth Pydantic schemas
+│   │   │   ├── user.py                # User schemas
+│   │   │   ├── news.py                # News schemas
+│   │   │   ├── recommendation.py      # Recommendation schemas
+│   │   │   └── tracking.py            # Tracking schemas
+│   │   ├── services/
+│   │   │   ├── auth/
+│   │   │   │   ├── auth_service.py    # JWT, password hashing
+│   │   │   │   └── dependencies.py    # get_current_user
+│   │   │   ├── user/
+│   │   │   │   └── user_service.py    # User CRUD, history, collections
+│   │   │   ├── news/
+│   │   │   │   └── news_service.py    # News CRUD, like, collect, share
+│   │   │   ├── recommendation/
+│   │   │   │   └── recommendation_service.py  # Multi-strategy recall + ranking
+│   │   │   └── tracking/
+│   │   │       └── tracking_service.py  # Behavior tracking logic
+│   │   └── main.py                    # FastAPI app entry point
+│   ├── alembic/                       # Database migrations
+│   ├── tests/                         # Pytest test suite
+│   ├── requirements.txt               # Python dependencies
+│   ├── Dockerfile                     # Production Docker image
+│   └── init_database.py              # Database initialization script
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── common/               # Shared components
+│   │   │   │   ├── ProtectedRoute.tsx
+│   │   │   │   ├── InfiniteScrollWrapper.tsx
+│   │   │   │   └── LoadingScreen.tsx
+│   │   │   ├── layout/
+│   │   │   │   ├── MainLayout.tsx    # Main app layout with sidebar
+│   │   │   │   └── AuthLayout.tsx    # Auth pages layout
+│   │   │   └── news/
+│   │   │       └── NewsCard.tsx      # News card component
+│   │   ├── pages/
+│   │   │   ├── auth/                 # Login, Register
+│   │   │   ├── home/                 # HomePage with recommendations
+│   │   │   ├── news/                 # NewsDetailPage, CategoryPage, SearchPage
+│   │   │   └── profile/              # ProfilePage
+│   │   ├── services/
+│   │   │   ├── apiClient.ts          # Axios instance with interceptors
+│   │   │   ├── authService.ts        # Auth API calls
+│   │   │   ├── userService.ts        # User API calls
+│   │   │   ├── newsService.ts        # News API calls
+│   │   │   ├── recommendationService.ts
+│   │   │   └── trackingService.ts    # Behavior tracking API
+│   │   ├── hooks/
+│   │   │   ├── useTracker.ts         # Behavior tracking hook
+│   │   │   ├── useVisibilityTracker.ts  # Intersection Observer
+│   │   │   └── useInfiniteNews.ts    # Infinite scroll
+│   │   ├── store/
+│   │   │   └── authStore.ts          # Zustand auth state
+│   │   ├── types/
+│   │   │   └── index.ts              # TypeScript interfaces
+│   │   ├── utils/
+│   │   │   ├── tokenStorage.ts       # Local storage for tokens
+│   │   │   └── errorHandling.ts      # Error utilities
+│   │   ├── App.tsx                   # Main app component
+│   │   └── main.tsx                  # React entry point
+│   ├── package.json                  # Node dependencies
+│   ├── vite.config.ts                # Vite configuration
+│   ├── Dockerfile                    # Production Docker image
+│   └── Dockerfile.dev                # Development Docker image
+│
+├── scripts/
+│   └── init.sql                      # Database initialization SQL
+│
+├── docker-compose.yml                # Full stack orchestration
+├── docker-compose-simple.yml         # Simplified setup
+├── start-dev.sh                      # Development startup script
+├── stop-dev.sh                       # Stop development services
+├── .env.example                      # Environment variables template
+├── README.md                         # User-facing documentation
+└── CLAUDE.md                         # This file
+
+```
+
+---
+
+## 🗄️ Database Schema (Actual Implementation)
+
+### Users
+```sql
+Table: users
+- id (PK, Integer)
+- email (String, unique, indexed)
+- username (String, unique, nullable)
+- full_name (String, nullable)
+- password_hash (String)
+- is_active (Boolean, default=True)
+- is_superuser (Boolean, default=False)
+- email_verified (Boolean, default=False)
+- phone_number (String, nullable)
+- avatar_url (String, nullable)
+- created_at (DateTime with TZ)
+- updated_at (DateTime with TZ)
+- last_login (DateTime with TZ, nullable)
+```
+
+### User Profiles
+```sql
+Table: user_profiles
+- id (PK, Integer)
+- user_id (FK -> users.id, unique)
+- bio (Text)
+- interests (ARRAY[String])
+- location (String)
+- preferred_language (String, default='zh')
+- timezone (String, default='Asia/Shanghai')
+- preferred_categories (JSON)  # {category_id: weight}
+- preferred_tags (JSON)  # {tag: weight}
+- reading_history_count (Integer, default=0)
+- total_reading_time (Integer, default=0)  # seconds
+- average_session_duration (Integer, default=0)  # seconds
+- favorite_sources (ARRAY[String])
+- quality_threshold (Float, default=0.5)
+- diversity_preference (Float, default=0.5)
+- freshness_preference (Float, default=0.5)
+- is_cold_start_user (Boolean, default=True)
+- onboarding_completed (Boolean, default=False)
+- created_at, updated_at (DateTime with TZ)
+```
+
+### News Categories
+```sql
+Table: news_categories
+- id (PK, Integer)
+- name (String, unique, indexed)
+- name_zh (String, nullable)
+- description (Text)
+- parent_id (FK -> news_categories.id, nullable)
+- icon (String, nullable)
+- color (String, nullable)  # Hex color
+- sort_order (Integer, default=0)
+- is_active (Boolean, default=True)
+- created_at, updated_at (DateTime with TZ)
+```
+
+### News
+```sql
+Table: news
+- id (PK, Integer)
+- title (String, indexed)
+- title_zh (String, nullable)
+- content (Text)
+- summary (Text)
+- summary_zh (Text, nullable)
+- source (String, indexed)
+- source_url (String, unique)
+- author (String, nullable)
+- image_url (String, nullable)
+- video_url (String, nullable)
+- category_id (FK -> news_categories.id, indexed)
+- tags (ARRAY[String])
+- language (String, default='zh')
+- word_count (Integer, default=0)
+- reading_time (Integer, default=0)  # minutes
+- quality_score (Float, default=0.0)  # 0-1
+- sentiment_score (Float, default=0.0)  # -1 to 1
+- view_count (Integer, default=0)
+- like_count (Integer, default=0)
+- share_count (Integer, default=0)
+- comment_count (Integer, default=0)
+- click_through_rate (Float, default=0.0)
+- popularity_score (Float, default=0.0)
+- trending_score (Float, default=0.0)
+- embedding_vector (JSON, nullable)
+- is_published (Boolean, default=True)
+- is_featured (Boolean, default=False)
+- is_breaking (Boolean, default=False)
+- published_at (DateTime with TZ, indexed)
+- created_at (DateTime with TZ, indexed)
+- updated_at (DateTime with TZ)
+- slug (String, unique, nullable)  # URL-friendly identifier
+```
+
+### User Behaviors
+```sql
+Table: user_behaviors
+- id (PK, Integer)
+- user_id (FK -> users.id, indexed)
+- news_id (FK -> news.id, indexed)
+- behavior_type (String, indexed)  # 'impression', 'click', 'read', 'like', 'bookmark', 'share'
+- timestamp (DateTime with TZ, indexed)
+- session_id (String, nullable)
+- context (JSON, nullable)  # Device, position, etc.
+- duration (Integer, default=0)  # seconds, for 'read' behavior
+- read_percentage (Float, default=0.0)  # 0-1
+- scroll_depth (Float, default=0.0)  # 0-1
+- device_type (String, nullable)
+- referrer (String, nullable)
+```
+
+**Key Relationships:**
+- User 1:1 UserProfile
+- User 1:N UserBehavior
+- News N:1 NewsCategory
+- News 1:N UserBehavior
+- NewsCategory (self-referential for parent/children)
+
+---
+
+## 🚀 Development Workflows
+
+### Initial Setup
+
+```bash
+# 1. Clone repository
+git clone https://github.com/nilecui/news-recommendation.git
+cd news-recommendation
+
+# 2. Start infrastructure services
+docker-compose up -d postgres redis elasticsearch
+
+# 3. Set up environment variables
+cp .env.example .env
+# Edit .env with your configuration
+
+# 4. Initialize database
+cd backend
+python init_database.py
+
+# 5. Start development servers
+# Option A: Use scripts (recommended)
+cd ..
+chmod +x start-dev.sh
+./start-dev.sh
+
+# Option B: Manual start
+# Terminal 1 - Backend
+cd backend
+source ../venv/bin/activate  # or create: python -m venv ../venv
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2 - Frontend
+cd frontend
+npm install
+npm run dev
+```
+
+### Access Points
+- **Frontend**: http://localhost:5173 (or 3000 in Docker)
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/api/v1/docs
+- **ReDoc**: http://localhost:8000/api/v1/redoc
+- **Health Check**: http://localhost:8000/health
+
+### Running Tests
+
+```bash
+# Backend tests
+cd backend
+pytest                          # Run all tests
+pytest tests/test_auth.py      # Specific test file
+pytest -v                      # Verbose output
+pytest --cov=app              # Coverage report
+
+# Frontend tests (if configured)
+cd frontend
+npm test
+npm run test:coverage
+```
+
+### Database Operations
+
+```bash
+# Create new migration
+cd backend
+alembic revision --autogenerate -m "Description of changes"
+
+# Apply migrations
+alembic upgrade head
+
+# Rollback one migration
+alembic downgrade -1
+
+# View migration history
+alembic history
+
+# Reinitialize database (WARNING: destroys data)
+python init_database.py
+```
+
+### Docker Operations
+
+```bash
+# Full stack
+docker-compose up -d          # Start all services
+docker-compose down           # Stop all services
+docker-compose logs -f backend  # Follow backend logs
+docker-compose restart backend  # Restart specific service
+
+# Rebuild after code changes
+docker-compose build backend
+docker-compose up -d backend
+
+# Database only
+docker-compose up -d postgres redis elasticsearch
+
+# Check service status
+docker-compose ps
+```
+
+---
+
+## 🔑 API Endpoints Reference
+
+### Authentication (`/api/v1/auth`)
+- `POST /register` - Register new user
+- `POST /login` - Login (returns access + refresh tokens)
+- `POST /logout` - Logout (invalidate tokens)
+- `POST /refresh` - Refresh access token
+
+### Users (`/api/v1/users`)
+- `GET /me` - Get current user info
+- `PUT /me` - Update user info
+- `DELETE /me` - Delete account
+- `GET /me/profile` - Get user profile
+- `PUT /me/profile` - Update user profile
+- `GET /me/history` - Get reading history (paginated)
+- `GET /me/collections` - Get bookmarked news (paginated)
+
+### News (`/api/v1/news`)
+- `GET /latest` - Get latest news (paginated)
+- `GET /trending` - Get trending news (paginated)
+- `GET /category/{category_id}` - Get news by category (paginated)
+- `GET /{news_id}` - Get news details
+- `POST /search` - Search news (body: query, filters)
+- `POST /{news_id}/like` - Toggle like
+- `POST /{news_id}/collect` - Toggle bookmark
+- `POST /{news_id}/share` - Record share event
+
+### Recommendations (`/api/v1/recommendations`)
+- `GET /` - Get personalized recommendations (uses multi-strategy)
+- `GET /cold-start` - Get cold start recommendations
+- `GET /discovery` - Get discovery recommendations
+- `GET /popular` - Get popular news
+- `GET /similar/{news_id}` - Get similar news
+- `POST /feedback` - Submit recommendation feedback
+
+### Tracking (`/api/v1/tracking`)
+- `GET /stats` - Get tracking statistics
+- `POST /impression` - Record impression
+- `POST /click` - Record click
+- `POST /read` - Record read (with duration)
+- `POST /behaviors` - Batch record behaviors
+
+**Standard Response Format:**
+```json
 {
   "code": 200,
   "message": "success",
-  "data": {},
+  "data": { ... },
   "timestamp": 1234567890
 }
-`
-
-* 分页参数: page, page_size
-* 排序参数: order_by, order
-* 错误码规范: 400客户端错误, 401未授权, 500服务器错误
-
-
-
-### 6. 前端页面设计
-
-#### 页面结构
-
-1. **登录/注册页**
-
-   * 表单组件，验证逻辑
-   * 第三方登录按钮(可选)
-
-2. **首页 (推荐流)**
-
-   * 无限滚动加载
-   * 新闻卡片组件: 封面图、标题、摘要、来源、时间
-   * 下拉刷新功能
-
-3. **新闻详情页**
-
-   * 富文本展示
-   * 互动按钮: 点赞、收藏、分享
-   * 相关推荐区块
-
-4. **分类浏览页**
-
-   * Tab切换分类
-   * 瀑布流或列表布局
-
-5. **搜索页**
-
-   * 搜索框 + 历史搜索
-   * 搜索结果列表
-
-6. **个人中心**
-
-   * 阅读历史
-   * 我的收藏
-   * 偏好设置
-   * 账号管理
-
-#### 前端架构设计
-
-
-src/
-├── components/      # 通用组件
-│   ├── NewsCard/
-│   ├── Header/
-│   └── InfiniteScroll/
-├── pages/          # 页面组件
-│   ├── Home/
-│   ├── NewsDetail/
-│   ├── Profile/
-│   └── Auth/
-├── store/          # 状态管理
-│   ├── userStore.js
-│   └── newsStore.js
-├── services/       # API调用
-│   ├── api.js
-│   └── request.js
-├── hooks/          # 自定义Hooks
-│   ├── useTracker.js
-│   └── useInfiniteScroll.js
-├── utils/          # 工具函数
-└── App.jsx
-
-
-#### 性能优化策略
-
-* 路由懒加载: React.lazy() + Suspense
-* 图片懒加载: Intersection Observer
-* 虚拟滚动: 长列表使用react-window
-* 缓存策略: React Query管理服务端状态
-* 骨架屏: 加载时显示占位符
-
-
-
-## 数据流设计
-
-### 推荐请求流程
-
-
-1. 用户打开APP/刷新页面
-2. 前端发送GET /api/news/recommend请求 (携带token)
-3. 后端验证token → 获取user_id
-4. 检查Redis缓存，命中则直接返回
-5. 未命中则触发推荐引擎:
-   - 获取用户画像
-   - 多路召回
-   - 特征提取
-   - 模型预测排序
-6. 结果写入Redis缓存(TTL=5分钟)
-7. 返回推荐列表给前端
-8. 前端渲染新闻卡片
-9. 曝光埋点触发，上报行为数据
-
-
-### 行为数据流程
-
-
-1. 用户产生行为(点击/阅读/点赞等)
-2. 前端Hook记录行为，暂存本地
-3. 达到批量条件(30秒或50条)
-4. POST /api/track/behaviors批量上报
-5. 后端接收，发送到Celery队列
-6. Worker消费消息:
-   - 写入PostgreSQL
-   - 更新Redis实时特征(用户最近兴趣、新闻热度)
-7. 定时任务(每小时):
-   - 聚合行为数据
-   - 更新用户画像
-   - 重新训练推荐模型(每天)
-
-
-
-
-## 离线任务调度
-
-### Celery定时任务
-
-1. **数据采集任务** (每30分钟)
-
-   * 触发爬虫抓取新闻
-   * 数据清洗入库
-
-2. **特征更新任务** (每小时)
-
-   * 聚合用户行为数据
-   * 更新用户画像特征
-   * 计算新闻热度分
-
-3. **模型训练任务** (每天凌晨)
-
-   * 提取昨日训练样本
-   * 增量训练LightGBM模型
-   * 模型评估与版本管理
-
-4. **缓存预热任务** (每天早7点)
-
-   * 预计算活跃用户推荐结果
-   * 写入Redis缓存
-
-5. **数据清理任务** (每周)
-
-   * 归档旧行为数据
-   * 清理过期新闻
-   * 数据库索引优化
-
-
-
-## 监控与优化
-
-### 关键指标监控
-
-**业务指标**
-
-* CTR (点击率)
-* 人均阅读时长
-* 用户留存率(次日/7日/30日)
-* 推荐覆盖率
-* 新闻分布多样性
-
-**技术指标**
-
-* API响应时间(P50/P99)
-* 推荐引擎耗时
-* 缓存命中率
-* 数据库慢查询
-* 爬虫成功率
-
-### 优化方向
-
-1. **算法优化**
-
-   * AB测试不同召回策略权重
-   * 尝试深度学习模型(Wide&Deep, DeepFM)
-   * 引入多目标优化(CTR + 时长 + 互动)
-
-2. **性能优化**
-
-   * 推荐结果预计算
-   * 数据库分库分表
-   * 引入CDN加速图片/静态资源
-   * 使用消息队列削峰
-
-3. **用户体验优化**
-
-   * 个性化首页布局
-   * 智能摘要生成
-   * 多模态推荐(视频新闻)
-
-
-
-## 部署方案
-
-### 后端部署
-
-* **容器化**: Docker + Docker Compose
-* **负载均衡**: Nginx反向代理
-* **进程管理**: Gunicorn + Supervisor
-* **任务队列**: Celery workers (多进程)
-* **环境隔离**: Python虚拟环境
-
-### 前端部署
-
-* **构建**: Vite build生成静态文件
-* **托管**: Nginx serve静态资源
-* **CDN**: 静态资源上传到OSS + CDN加速
-
-### 数据库
-
-* **PostgreSQL**: 主从复制，读写分离
-* **Redis**: 哨兵模式或集群模式
-* **Elasticsearch**: 集群部署
-
-
-
-## 开发迭代计划
-
-### MVP版本 (第1-2周)
-
-* 基础爬虫 + 数据清洗
-* 用户注册登录
-* 简单推荐算法(热门+分类)
-* 前端基础页面
-
-### V1.0 (第3-4周)
-
-* 多路召回策略
-* LightGBM排序模型
-* 行为追踪完整实现
-* 用户画像构建
-
-### V2.0 (第5-6周)
-
-* 推荐算法优化(冷启动、多样性)
-* 搜索功能完善
-* 性能优化(缓存、异步)
-* 监控系统搭建
-
-### V3.0 (后续迭代)
-
-* 深度学习模型
-* 多目标优化
-* 实时推荐
-* 个性化UI
-
-
-
-## 技术难点与解决方案
-
-### 1. 冷启动问题
-
-* **方案**: 引导页收集兴趣 + 热门兜底 + 快速学习策略
-
-### 2. 数据稀疏性
-
-* **方案**: 内容特征补充 + 迁移学习 + 跨域推荐
-
-### 3. 实时性要求
-
-* **方案**: Redis缓存 + 增量更新 + 异步计算
-
-### 4. 信息茧房
-
-* **方案**: 探索与利用平衡(ε-greedy) + 新鲜度召回 + 多样性重排
-
-### 5. 扩展性
-
-* **方案**: 微服务拆分 + 消息队列解耦 + 数据库分片
+```
+
+**Pagination:**
+- Query params: `page` (default: 1), `page_size` (default: 20)
+- Response includes: `items`, `total`, `page`, `page_size`, `total_pages`
+
+**Authentication:**
+- Header: `Authorization: Bearer <access_token>`
+- Access token expires in 15 minutes
+- Refresh token expires in 7 days
+
+---
+
+## 🎨 Frontend Architecture
+
+### State Management
+- **Zustand** for global state (auth)
+- **React Query** for server state (not yet implemented, uses native fetch)
+- **Local state** with useState for component-specific state
+
+### Routing
+```typescript
+// App.tsx routes
+/login         -> LoginPage (public)
+/register      -> RegisterPage (public)
+/              -> HomePage (protected)
+/news/:id      -> NewsDetailPage (protected)
+/category/:id  -> CategoryPage (protected)
+/search        -> SearchPage (protected)
+/profile       -> ProfilePage (protected)
+/history       -> HistoryPage (protected, via ProfilePage)
+/favorites     -> FavoritesPage (protected, via ProfilePage)
+```
+
+### Custom Hooks
+- `useTracker(behaviorType, newsId)` - Track user behaviors
+- `useVisibilityTracker(newsId)` - Track impressions with Intersection Observer
+- `useInfiniteNews(endpoint, params)` - Infinite scroll for news lists
+- `useAuth()` - Access auth state and methods
+
+### API Client Pattern
+```typescript
+// All API calls go through apiClient.ts
+import apiClient from '@/services/apiClient';
+
+const response = await apiClient.get('/news/latest', { params: { page: 1 } });
+
+// apiClient automatically:
+// - Adds Authorization header
+// - Refreshes token if expired
+// - Handles errors consistently
+// - Redirects to login on 401
+```
+
+### Behavior Tracking Pattern
+```typescript
+// In any component
+import { useTracker } from '@/hooks/useTracker';
+import { useVisibilityTracker } from '@/hooks/useVisibilityTracker';
+
+function NewsCard({ news }) {
+  const { trackBehavior } = useTracker();
+  const cardRef = useVisibilityTracker(news.id);  // Auto-tracks impressions
+
+  const handleClick = () => {
+    trackBehavior('click', news.id);
+    navigate(`/news/${news.id}`);
+  };
+
+  return <div ref={cardRef} onClick={handleClick}>...</div>;
+}
+```
+
+---
+
+## 🧩 Backend Architecture
+
+### Service Layer Pattern
+Controllers (endpoints) → Services → Models (ORM)
+
+**Example Flow:**
+```
+GET /api/v1/recommendations/
+  → endpoints/recommendations.py::get_recommendations()
+    → services/recommendation/recommendation_service.py::get_recommendations()
+      → Multi-strategy recall (hot, content, collaborative, fresh)
+      → Ranking algorithm
+      → Redis caching
+      → Return formatted results
+```
+
+### Recommendation Engine Strategy
+
+**For Cold Start Users:**
+- 60% Hot news (trending in last 24h)
+- 20% Featured news
+- 20% Fresh news (latest)
+
+**For Warm Users:**
+- 40% Content-based (user preferences match)
+- 30% Collaborative filtering (similar users)
+- 20% Hot news
+- 10% Fresh news (exploration)
+
+**Ranking Algorithm:**
+```python
+score = strategy_weight
+      + popularity_score * 0.3
+      + trending_score * 0.3
+      + quality_score * 0.2
+      + freshness_score * 0.2
+      + (1.5x if breaking)
+      + (1.2x if featured)
+
+# With diversity re-ranking using MMR algorithm
+```
+
+### Dependency Injection
+```python
+from app.services.auth.dependencies import get_current_user
+
+@router.get("/protected")
+async def protected_route(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # current_user is automatically validated from JWT
+    # db is a database session
+```
+
+### Error Handling
+- Custom exceptions in each service
+- Global exception handler in main.py
+- Validation errors return 422 with details
+- Auth errors return 401
+- Resource not found returns 404
+- Server errors return 500 (details hidden in production)
+
+---
+
+## 🛠️ Common Development Tasks
+
+### Adding a New API Endpoint
+
+1. **Define Schema** (`app/schemas/`)
+```python
+# app/schemas/new_feature.py
+from pydantic import BaseModel
+
+class FeatureRequest(BaseModel):
+    param: str
+
+class FeatureResponse(BaseModel):
+    result: str
+```
+
+2. **Implement Service** (`app/services/new_feature/`)
+```python
+# app/services/new_feature/feature_service.py
+class FeatureService:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def do_something(self, param: str) -> str:
+        # Business logic here
+        return "result"
+```
+
+3. **Create Endpoint** (`app/api/v1/endpoints/`)
+```python
+# app/api/v1/endpoints/new_feature.py
+from fastapi import APIRouter, Depends
+from app.services.auth.dependencies import get_current_user
+
+router = APIRouter()
+
+@router.post("/action")
+async def action(
+    request: FeatureRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    service = FeatureService(db)
+    result = service.do_something(request.param)
+    return {"result": result}
+```
+
+4. **Register Router** (`app/api/v1/api.py`)
+```python
+from app.api.v1.endpoints import new_feature
+
+api_router.include_router(
+    new_feature.router,
+    prefix="/new-feature",
+    tags=["new-feature"]
+)
+```
+
+### Adding a New Database Model
+
+1. **Define Model** (`app/models/`)
+```python
+# app/models/new_model.py
+from sqlalchemy import Column, Integer, String
+from app.config.database import Base
+
+class NewModel(Base):
+    __tablename__ = "new_models"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+```
+
+2. **Import in models/__init__.py**
+```python
+from .new_model import NewModel
+```
+
+3. **Create Migration**
+```bash
+cd backend
+alembic revision --autogenerate -m "Add new_model table"
+alembic upgrade head
+```
+
+### Adding a Frontend Page
+
+1. **Create Page Component** (`src/pages/`)
+```typescript
+// src/pages/new-page/NewPage.tsx
+import React from 'react';
+
+export const NewPage: React.FC = () => {
+  return <div>New Page Content</div>;
+};
+```
+
+2. **Add Route** (`src/App.tsx`)
+```typescript
+import { NewPage } from '@/pages/new-page/NewPage';
+
+// In Routes
+<Route path="/new-page" element={
+  <ProtectedRoute>
+    <NewPage />
+  </ProtectedRoute>
+} />
+```
+
+3. **Add Navigation** (`src/components/layout/MainLayout.tsx`)
+```typescript
+// Add menu item
+{
+  key: '/new-page',
+  icon: <IconComponent />,
+  label: 'New Page'
+}
+```
+
+---
+
+## 🧪 Testing Guidelines
+
+### Backend Testing
+
+**Test Structure:**
+```python
+# tests/test_feature.py
+import pytest
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+def test_feature_success():
+    response = client.post(
+        "/api/v1/feature/action",
+        json={"param": "value"},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 200
+    assert response.json()["data"]["result"] == "expected"
+
+def test_feature_validation_error():
+    response = client.post("/api/v1/feature/action", json={})
+    assert response.status_code == 422
+```
+
+**Fixtures** (`tests/conftest.py`):
+- `db_session` - Test database session
+- `test_user` - Create test user
+- `auth_token` - Get auth token for test user
+
+**Run Specific Tests:**
+```bash
+pytest tests/test_auth.py::test_login_success
+pytest -k "test_recommendation"
+pytest -m "slow"  # If using markers
+```
+
+### Frontend Testing (To Implement)
+
+**Recommended Tools:**
+- Vitest for unit tests
+- React Testing Library for component tests
+- Playwright for E2E tests
+
+---
+
+## 🚢 Deployment
+
+### Environment Variables
+
+**Backend (.env):**
+```bash
+DEBUG=False
+SECRET_KEY=<generate-secure-key>
+DATABASE_URL=postgresql://user:pass@host:5432/db
+REDIS_URL=redis://host:6379/0
+ELASTICSEARCH_URL=http://host:9200
+CELERY_BROKER_URL=redis://host:6379/1
+CELERY_RESULT_BACKEND=redis://host:6379/2
+ACCESS_TOKEN_EXPIRE_MINUTES=15
+REFRESH_TOKEN_EXPIRE_DAYS=7
+ALLOWED_HOSTS=https://yourdomain.com,http://localhost:3000
+```
+
+**Frontend (.env.production):**
+```bash
+VITE_API_BASE_URL=https://api.yourdomain.com/api/v1
+NODE_ENV=production
+```
+
+### Docker Production Build
+
+```bash
+# Build images
+docker-compose -f docker-compose.yml build
+
+# Start production stack
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Scale workers
+docker-compose up -d --scale celery_worker=4
+```
+
+### Manual Deployment
+
+**Backend:**
+```bash
+cd backend
+pip install -r requirements.txt
+gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.main:app
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm run build
+# Serve dist/ folder with nginx or similar
+```
+
+---
+
+## 🎯 Code Conventions & Best Practices
+
+### Python (Backend)
+
+1. **Type Hints**: Always use type hints
+```python
+def get_user(user_id: int) -> User:
+    ...
+```
+
+2. **Pydantic Schemas**: Use for request/response validation
+```python
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    bio: Optional[str] = None
+```
+
+3. **Error Handling**: Use HTTPException
+```python
+from fastapi import HTTPException, status
+
+raise HTTPException(
+    status_code=status.HTTP_404_NOT_FOUND,
+    detail="User not found"
+)
+```
+
+4. **Async/Await**: Use for I/O operations
+```python
+async def get_recommendations(user_id: int):
+    redis = await self.get_redis()
+    cached = await redis.get(f"rec:{user_id}")
+```
+
+5. **Docstrings**: Use for complex functions
+```python
+def calculate_score(news: News, strategy: str) -> float:
+    """
+    Calculate recommendation score for a news item.
+
+    Args:
+        news: News object to score
+        strategy: Recall strategy used ('hot', 'content', etc.)
+
+    Returns:
+        Float score between 0 and infinity
+    """
+```
+
+### TypeScript (Frontend)
+
+1. **Interface Definitions**: Define in `types/index.ts`
+```typescript
+export interface News {
+  id: number;
+  title: string;
+  summary: string;
+  // ...
+}
+```
+
+2. **Component Props**: Always type
+```typescript
+interface NewsCardProps {
+  news: News;
+  onLike?: (newsId: number) => void;
+}
+
+export const NewsCard: React.FC<NewsCardProps> = ({ news, onLike }) => {
+  ...
+};
+```
+
+3. **API Calls**: Use service layer
+```typescript
+// Don't call axios directly in components
+// Do this:
+import { getLatestNews } from '@/services/newsService';
+
+const news = await getLatestNews(page);
+```
+
+4. **Error Handling**: Use try-catch with user feedback
+```typescript
+try {
+  await someAction();
+  message.success('Success!');
+} catch (error) {
+  message.error(error.message || 'Something went wrong');
+}
+```
+
+### Git Commit Messages
+
+Follow conventional commits:
+```
+feat: Add user notification system
+fix: Resolve login token refresh issue
+docs: Update API documentation
+style: Format code with prettier
+refactor: Simplify recommendation algorithm
+test: Add tests for auth endpoints
+chore: Update dependencies
+```
+
+---
+
+## 📚 Key Files for AI Assistants
+
+When making changes, always reference these files:
+
+**Backend:**
+- `app/main.py` - Application entry, middleware, CORS
+- `app/api/v1/api.py` - API router registration
+- `app/config/settings.py` - Configuration (read-only, use .env)
+- `app/models/*.py` - Database schema (generate migrations after changes)
+- `app/services/*/` - Business logic (main implementation area)
+
+**Frontend:**
+- `src/App.tsx` - Routing configuration
+- `src/services/apiClient.ts` - HTTP client setup
+- `src/store/authStore.ts` - Auth state management
+- `src/components/layout/MainLayout.tsx` - App layout and navigation
+
+**Infrastructure:**
+- `docker-compose.yml` - Service orchestration
+- `.env.example` - Environment variables template
+- `backend/requirements.txt` - Python dependencies
+- `frontend/package.json` - Node dependencies
+
+---
+
+## 🐛 Troubleshooting Common Issues
+
+### Backend Issues
+
+**Import Error: No module named 'app'**
+```bash
+# Make sure you're in backend/ directory
+cd backend
+# Make sure venv is activated
+source ../venv/bin/activate
+```
+
+**Database Connection Error**
+```bash
+# Check if PostgreSQL is running
+docker-compose ps postgres
+# Check DATABASE_URL in .env
+# Try: psql postgresql://user:pass@localhost:5432/dbname
+```
+
+**Alembic Migration Conflicts**
+```bash
+# View migration heads
+alembic heads
+# Stamp to specific revision
+alembic stamp <revision>
+# Or drop and recreate
+python init_database.py
+```
+
+### Frontend Issues
+
+**CORS Error**
+- Check `ALLOWED_HOSTS` in backend `.env`
+- Should include `http://localhost:5173` (or your frontend port)
+
+**401 Unauthorized on Protected Routes**
+- Check if token is stored: `localStorage.getItem('access_token')`
+- Check token expiration
+- Try logging out and back in
+
+**Build Errors**
+```bash
+# Clear node_modules and reinstall
+rm -rf node_modules package-lock.json
+npm install
+
+# Clear Vite cache
+rm -rf node_modules/.vite
+```
+
+### Docker Issues
+
+**Port Already in Use**
+```bash
+# Find process using port
+lsof -i :8000
+# Kill process
+kill -9 <PID>
+```
+
+**Container Won't Start**
+```bash
+# View logs
+docker-compose logs backend
+# Rebuild container
+docker-compose build --no-cache backend
+docker-compose up -d backend
+```
+
+---
+
+## 📊 Monitoring & Observability
+
+**Structured Logging:**
+- Backend uses `structlog` for JSON logging
+- Logs include: method, url, status_code, process_time
+- View logs: `docker-compose logs -f backend`
+
+**Health Checks:**
+- `GET /health` - Basic health check
+- Returns: `{"status": "healthy", "timestamp": ...}`
+
+**Metrics (Planned):**
+- Prometheus endpoint: `/metrics` (not yet implemented)
+- Key metrics: request_duration, request_count, db_query_time
+
+**Celery Monitoring (When Implemented):**
+- Flower: http://localhost:5555
+- View tasks, workers, queues
+
+---
+
+## 🔮 Roadmap & Next Steps
+
+### High Priority (Blocking Features)
+
+1. **Implement Celery Tasks**
+   - Create `app/celery_app.py`
+   - Implement news crawling tasks
+   - Add periodic tasks (trending calculation, cache warming)
+   - File: Referenced in `docker-compose.yml` but missing
+
+2. **Fix Missing Crawler Endpoint**
+   - Create `app/api/v1/endpoints/crawler.py`
+   - Currently imported in `api.py` but file doesn't exist
+   - Implement SerpAPI news crawling
+   - Trigger manual and scheduled crawls
+
+3. **Implement Elasticsearch Integration**
+   - Connect to configured ES instance
+   - Index news on creation
+   - Implement full-text search in `news_service.py`
+   - Add vector search for embeddings
+
+### Medium Priority (Enhancements)
+
+1. **ML Model Integration**
+   - Train LightGBM ranking model
+   - Replace rule-based scoring with ML predictions
+   - Implement model versioning and A/B testing
+
+2. **Content Embeddings**
+   - Generate embeddings with Sentence-Transformers
+   - Store in `embedding_vector` column
+   - Implement vector similarity search
+
+3. **MinIO Integration**
+   - Set up MinIO for image storage
+   - Implement image upload API
+   - CDN integration
+
+4. **Frontend Improvements**
+   - Implement React Query for data fetching
+   - Add optimistic updates
+   - Improve error boundaries
+   - Add loading skeletons
+
+### Low Priority (Nice-to-Have)
+
+1. **Advanced Features**
+   - Real-time notifications (WebSocket)
+   - Social features (follow users, comments)
+   - Personalized newsletters
+   - Mobile app (React Native)
+
+2. **Operational**
+   - Kubernetes deployment configs
+   - CI/CD pipeline (GitHub Actions)
+   - Automated testing in CI
+   - Performance monitoring (APM)
+
+---
+
+## 🤝 Contributing Guidelines
+
+When working on this codebase:
+
+1. **Always read existing code** before adding new features
+2. **Follow established patterns** (service layer, schemas, etc.)
+3. **Write tests** for new functionality
+4. **Update this file** if you add new patterns or conventions
+5. **Use descriptive commit messages** (conventional commits)
+6. **Keep dependencies updated** but test thoroughly
+7. **Document breaking changes** in commit messages and PR descriptions
+
+---
+
+## 📞 Getting Help
+
+**Documentation:**
+- API Docs: http://localhost:8000/api/v1/docs
+- FastAPI: https://fastapi.tiangolo.com
+- React: https://react.dev
+- Ant Design: https://ant.design
+- SQLAlchemy: https://docs.sqlalchemy.org
+
+**Project Docs:**
+- `README.md` - User-facing setup guide
+- `QUICK_START.md` - Quick start instructions (Chinese)
+- `backend/COMPLETE_API_TEST_REPORT.md` - API test results
+- `DASHBOARD_OPTIMIZATION_REPORT.md` - UI optimization notes
+
+**Issues:**
+- GitHub Issues: Report bugs and request features
+- Check existing issues before creating new ones
+
+---
+
+**Last Updated**: 2025-11-14
+**Maintained By**: AI Assistant with periodic human review
+**License**: MIT
